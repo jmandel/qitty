@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 
 pub mod dict;
 pub mod examples;
+pub mod parser;
 
 #[macro_use]
 extern crate lazy_static;
@@ -39,6 +40,9 @@ pub enum Constraint {
     LiteralFrom(Vec<char>),
     Anagram(Vec<char>, Vec<Vec<char>>, bool),
     Variable(char),
+    SubPattern(Pattern),
+    Disjunction((Pattern, Pattern)),
+    Conjunction((Pattern, Pattern)),
 }
 
 #[derive(Clone, Debug)]
@@ -100,6 +104,16 @@ impl BindingsManager {
 }
 
 impl Pattern {
+    fn vars(&self) ->Vec<char> {
+        self.items.iter().flat_map(|t| {
+            match t {
+                Variable(c) => vec![*c],
+                SubPattern(sp) => sp.vars(),
+                Disjunction(sp) => sp.0.vars().into_iter().chain(sp.1.vars().into_iter()).collect(),
+                _ => vec![]
+            }
+        }).collect()
+    }
     fn evaluate(
         &self,
         p: &Production,
@@ -241,6 +255,27 @@ impl Pattern {
                         .collect()
                 }
             }
+            SubPattern(subp) => (0..=p.len())
+                .flat_map(|i| {
+                    subp.evaluate_helper(
+                        &p[0..i],
+                        bindings.clone(),
+                        variable_spec,
+                        0,
+                        binding_limits,
+                    )
+                    .into_iter()
+                    .flat_map(move |subb| {
+                        self.evaluate_helper(&p[i..], subb, variable_spec, at + 1, binding_limits)
+                    })
+                })
+                .collect(),
+            Disjunction(_) => {
+                todo!()
+            }
+            Conjunction(_) => {
+                todo!()
+            }
         }
     }
 }
@@ -317,26 +352,22 @@ pub fn q(query: &str) -> String {
 
     let mut s = String::new();
 
-    write!(&mut s, "[");
-    let result = examples::Q_POY.execute(&dictionary);
+    write!(&mut s, "[").unwrap();
+    let result = examples::Q_BLUEORANGE.execute(&dictionary);
     for (i, r) in result.iter().enumerate() {
         let rep = r.iter().map(|p| p.string.iter().join("")).join(";");
-        write!(&mut s, "{:?}", rep);
+        write!(&mut s, "{:?}", rep).unwrap();
         if i < result.len() - 1 {
-            writeln!(&mut s, ",");
+            writeln!(&mut s, ",").unwrap();
         }
     }
-    write!(&mut s, "]");
+    write!(&mut s, "]").unwrap();
     return s;
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::dict;
-    use crate::examples;
-    use crate::q;
-    use crate::Production;
-    use std::collections::BTreeMap;
+    use crate::*;
 
     #[test]
     fn it_works() {
