@@ -1,4 +1,23 @@
-pub static  UKACD17: &str = r#"a
+use crate::*;
+
+lazy_static! {
+
+
+pub static ref DICTIONARY: Vec<Production> = UKACD17.lines().map(|f| f.to_string())
+        .map(|a| Production {
+            string: a
+                .to_lowercase()
+                .replace(" ", "")
+                .replace("'", "")
+                .chars()
+                .collect(),
+            bindings: BTreeMap::new(),
+        })
+        .collect();
+
+}
+
+pub static UKACD17: &str = r#"a
 aa
 aachen
 aardvark

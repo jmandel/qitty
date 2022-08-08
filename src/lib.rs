@@ -1,3 +1,4 @@
+use dict::DICTIONARY;
 use wasm_bindgen::prelude::*;
 
 pub mod dict;
@@ -104,15 +105,21 @@ impl BindingsManager {
 }
 
 impl Pattern {
-    fn vars(&self) ->Vec<char> {
-        self.items.iter().flat_map(|t| {
-            match t {
+    fn vars(&self) -> Vec<char> {
+        self.items
+            .iter()
+            .flat_map(|t| match t {
                 Variable(c) => vec![*c],
                 SubPattern(sp) => sp.vars(),
-                Disjunction(sp) => sp.0.vars().into_iter().chain(sp.1.vars().into_iter()).collect(),
-                _ => vec![]
-            }
-        }).collect()
+                Disjunction(sp) => {
+                    sp.0.vars()
+                        .into_iter()
+                        .chain(sp.1.vars().into_iter())
+                        .collect()
+                }
+                _ => vec![],
+            })
+            .collect()
     }
     fn evaluate(
         &self,
@@ -256,7 +263,7 @@ impl Pattern {
                 }
             }
             SubPattern(subp) => (0..=p.len())
-                .flat_map(|i| {
+                .flat_map(|i| -> Vec<_> {
                     subp.evaluate_helper(
                         &p[0..i],
                         bindings.clone(),
@@ -265,9 +272,10 @@ impl Pattern {
                         binding_limits,
                     )
                     .into_iter()
-                    .flat_map(move |subb| {
+                    .flat_map(|subb| {
                         self.evaluate_helper(&p[i..], subb, variable_spec, at + 1, binding_limits)
                     })
+                    .collect()
                 })
                 .collect(),
             Disjunction(_) => {
@@ -279,17 +287,15 @@ impl Pattern {
         }
     }
 }
+
+#[derive(Clone, Debug)]
 pub struct Query {
     parts: Vec<Pattern>,
     variables: HashMap<VariableName, VariableSpec>,
 }
 
 impl Query {
-    fn execute(
-        &self,
-        haystack: &(impl Clone + IntoIterator<Item = Production>),
-    ) -> Vec<Vec<Production>> {
-        let dict: Vec<Production> = haystack.clone().into_iter().collect();
+    fn execute(&self, dict: &Vec<Production>) -> Vec<Vec<Production>> {
         let mut steps: Vec<Vec<Production>> = vec![];
         let mut binding_limits: BindingsManager = BindingsManager::default();
 
@@ -333,27 +339,19 @@ impl Query {
     }
 }
 
-#[wasm_bindgen]
-pub fn q(query: &str) -> String {
-    let dictionary: Vec<String> = dict::UKACD17.lines().map(|f| f.to_string()).collect();
-
-    let dictionary: Vec<Production> = dictionary
-        .iter()
-        .map(|a| Production {
-            string: a
-                .to_lowercase()
-                .replace(" ", "")
-                .replace("'", "")
-                .chars()
-                .collect(),
-            bindings: BTreeMap::new(),
-        })
-        .collect();
-
+pub fn q_for_productions(query: &str) -> Vec<Vec<Production>> {
     let mut s = String::new();
 
     write!(&mut s, "[").unwrap();
-    let result = examples::Q_BLUEORANGE.execute(&dictionary);
+    parser::parse(query).execute(&DICTIONARY)
+}
+
+#[wasm_bindgen]
+pub fn q(query: &str) -> String {
+    let mut s = String::new();
+
+    write!(&mut s, "[").unwrap();
+    let result = q_for_productions(query);
     for (i, r) in result.iter().enumerate() {
         let rep = r.iter().map(|p| p.string.iter().join("")).join(";");
         write!(&mut s, "{:?}", rep).unwrap();

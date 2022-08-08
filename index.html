@@ -9,13 +9,26 @@
       import init, {q} from "./pkg/rat.js";
       init()
         .then(() => {
-          const t0 = new Date().getTime();
-          console.log("Calc");
-          let x = q("test");
-          const t1 = new Date().getTime() - t0;
-          console.log(t1, JSON.parse(x).map(v => v.split(";")));
-          
+          window.qopy = (probe) => {
+            const t0 = new Date().getTime();
+            const result = JSON.parse(q(probe)).map(v => v.split(";"));
+            const elapsed = new Date().getTime() - t0;
+            return {result, elapsed, total: result.length}
+          }
+          const result = JSON.parse(q(".")).map(v => v.split(""));
+          console.log("Ready to qopy");
         });
     </script>
   </body>
+  <input id="q" type="text" value="....sand" />
+  <button onclick="runQuery()" >Run</button>
+  <br/>
+  <textarea id="result" style="width: 100%; height: 1000px;"></textarea>
+  <script>
+    function runQuery(){
+      const q = window.document.getElementById("q").value;
+      const r = qopy(q);
+      window.document.getElementById("result").innerHTML = JSON.stringify(r, null, 2);
+    }
+  </script>
 </html>

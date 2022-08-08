@@ -6,10 +6,10 @@ use crate::*;
 extern crate nom;
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_while_m_n},
+    bytes::complete::tag,
     character::complete::one_of,
-    combinator::{map, map_res, value},
-    multi::{fold_many0, many0, many1, separated_list0, separated_list1},
+    combinator::{map, value},
+    multi::{fold_many0, many1},
     sequence::{delimited, pair, tuple},
     IResult,
 };
@@ -49,9 +49,7 @@ fn production_pattern_item(input: &str) -> IResult<&str, Constraint> {
         map(
             delimited(tag("("), production_patttern_term, tag(")")),
             |o| SubPattern(o),
-        ), // map(separated_list0(tag("|"), production_pattern_item), |l| {
-           //     Disjunction(l)
-           // })
+        ),
     ))(input)?;
 
     Ok((input, m))
@@ -81,56 +79,45 @@ pub fn production_patttern_term(input: &str) -> IResult<&str, Pattern> {
     Ok((input, Pattern { items: p }))
 }
 
+pub fn parse(input: &str) -> Query {
+    let patternm = parser::production_patttern_term(&input).unwrap();
+    let pattern = patternm.1.clone();
+    Query {
+        parts: vec![pattern.clone()],
+        variables: pattern
+            .vars()
+            .iter()
+            .map(|v| {
+                (
+                    *v,
+                    VariableSpec {
+                        len_min: Some(1),
+                        len_max: None,
+                    },
+                )
+            })
+            .collect(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::time::SystemTime;
+    use std::{env, time::SystemTime};
 
     use super::*;
 
     #[test]
     fn parser_test() {
-        let dictionary: Vec<String> = dict::UKACD17.lines().map(|f| f.to_string()).collect();
+        let parg: String = env::args().last().unwrap();
 
-        let dictionary: Vec<Production> = dictionary
-            .iter()
-            .map(|l| l.to_lowercase().replace(" ", "").replace("'", ""))
-            .filter(|l| l.len() <= 30)
-            .map(|l| Production {
-                string: l.chars().collect(),
-                bindings: BTreeMap::new(),
-            })
-            .collect();
+        q("start");
 
-        let mut s = String::new();
-
-        let patternm = parser::production_patttern_term("ca(/et*)ring").unwrap();
-        let pattern = patternm.1.clone();
-        println!("{:?}", patternm);
-        let q = Query {
-            parts: vec![pattern.clone()],
-            variables: pattern
-                .vars()
-                .iter()
-                .map(|v| {
-                    (
-                        *v,
-                        VariableSpec {
-                            len_min: None,
-                            len_max: None,
-                        },
-                    )
-                })
-                .collect(),
-        };
+        println!("{:?}", parse(&parg));
         let now = SystemTime::now();
-        let result = q.execute(&dictionary);
+        let result = q(&parg);
         let elapsed = now.elapsed();
-        for (i, r) in result.iter().enumerate() {
-            let rep = r.iter().map(|p| p.string.iter().join("")).join(";");
-            writeln!(&mut s, "{:?}", rep).unwrap();
-        }
-        println!("Result: {}", s);
-        println!("Result: {}", result.len());
+
+        println!("Result: {}", result);
         println!("Processing: {:?}", elapsed);
     }
 }
