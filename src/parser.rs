@@ -1,3 +1,4 @@
+use core::num;
 use std::ops::Sub;
 
 #[allow(unused_imports)]
@@ -14,7 +15,7 @@ use nom::{
     IResult,
 };
 
-fn production_pattern_item(input: &str) -> IResult<&str, Constraint> {
+fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
     let (input, m) = alt((
         map(
             tuple((
@@ -22,7 +23,7 @@ fn production_pattern_item(input: &str) -> IResult<&str, Constraint> {
                 many1(one_of("abcdefghijklmnopqrstuvwxyz.*ABCDEFG")),
             )),
             |(_, fodder)| {
-                Anagram(
+                vec![Anagram(
                     fodder
                         .clone()
                         .into_iter()
@@ -35,20 +36,21 @@ fn production_pattern_item(input: &str) -> IResult<&str, Constraint> {
                         .map(|_| "abcdefghijklmnopqrstuvwxyz".chars().collect())
                         .collect(),
                     fodder.contains(&'*'),
-                )
+                )]
             },
         ),
-        value(SingleChar, tag(".")),
-        value(LiteralFrom("aeiou".chars().collect()), tag("@")),
+        value(vec![SingleChar], tag(".")),
+        value(vec![LiteralFrom("aeiou".chars().collect())], tag("@")),
+        value(vec![Anagram(vec![], vec![], true)], tag("*")),
         value(
-            LiteralFrom("bcdfghjklmnpqrstvwxyz".chars().collect()),
+            vec![LiteralFrom("bcdfghjklmnpqrstvwxyz".chars().collect())],
             tag("#"),
         ),
-        map(one_of("abcdefghijklmnopqrstuvwxyz"), |c| Literal(c)),
-        map(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), |c| Variable(c)),
+        map(one_of("abcdefghijklmnopqrstuvwxyz"), |c| vec![Literal(c)]),
+        map(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), |c| vec![Variable(c)]),
         map(
             delimited(tag("("), production_patttern_term, tag(")")),
-            |o| SubPattern(o),
+            |o| o.items,
         ),
     ))(input)?;
 
@@ -57,26 +59,30 @@ fn production_pattern_item(input: &str) -> IResult<&str, Constraint> {
 
 pub fn production_patttern_term(input: &str) -> IResult<&str, Pattern> {
     let (input, t1) = many1(production_pattern_item)(input)?;
+    let t1: Vec<_> = t1.into_iter().flatten().collect();
 
-    let (input, p) = fold_many0(
+    let (input, items) = fold_many0(
         pair(alt((tag("&"), tag("|"))), many1(production_pattern_item)),
         || t1.clone(),
         |acc, b| {
+            let bItems: Vec<_> = b.1.into_iter().flatten().collect();
             if b.0 == "&" {
                 vec![Conjunction((
                     Pattern { items: acc },
-                    Pattern { items: b.1 },
+                    Pattern { items: bItems },
                 ))]
             } else {
                 vec![Disjunction((
                     Pattern { items: acc },
-                    Pattern { items: b.1 },
+                    Pattern { items: bItems },
                 ))]
             }
         },
     )(input)?;
 
-    Ok((input, Pattern { items: p }))
+    // TODO remove subpatters altogether
+
+    Ok((input, Pattern { items }))
 }
 
 pub fn parse(input: &str) -> Query {
@@ -113,14 +119,11 @@ mod tests {
     #[test]
     fn parser_test() {
         let parg: String = env::args().last().unwrap();
-
         q("start");
-
         println!("{:?}", parse(&parg));
         let now = SystemTime::now();
         let result = q(&parg);
         let elapsed = now.elapsed();
-
         println!("Result: {}", result);
         println!("Processing: {:?}", elapsed);
     }

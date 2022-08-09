@@ -16,6 +16,7 @@ use std::fmt::Write as FmtWrite;
 use std::iter::FromIterator;
 
 use std::collections::{HashMap, HashSet};
+use std::result;
 
 use Constraint::*;
 
@@ -41,7 +42,6 @@ pub enum Constraint {
     LiteralFrom(Vec<char>),
     Anagram(Vec<char>, Vec<Vec<char>>, bool),
     Variable(char),
-    SubPattern(Pattern),
     Disjunction((Pattern, Pattern)),
     Conjunction((Pattern, Pattern)),
 }
@@ -111,7 +111,6 @@ impl Pattern {
                 acc.0
                     + match c {
                         Variable(v) => 0, // TODO read from spc
-                        SubPattern(p) => p.len_range().0,
                         Disjunction(ps) => std::cmp::min(ps.0.len_range().0, ps.1.len_range().0),
                         Conjunction(ps) => std::cmp::max(ps.0.len_range().0, ps.1.len_range().0),
                         Anagram(v, u, open) => v.len() + u.len(),
@@ -120,9 +119,8 @@ impl Pattern {
                 acc.1
                     + match c {
                         Variable(v) => 1000, // TODO read from spc
-                        SubPattern(p) => p.len_range().1,
                         Disjunction(ps) => std::cmp::max(ps.0.len_range().1, ps.1.len_range().1),
-                        Conjunction(ps) => std::cmp::max(ps.0.len_range().1, ps.1.len_range().1),
+                        Conjunction(ps) => std::cmp::min(ps.0.len_range().1, ps.1.len_range().1),
                         Anagram(v, u, open) => v.len() + u.len() + if *open { 1000 } else { 0 },
                         Literal(_) | LiteralFrom(_) | SingleChar => 1,
                     },
@@ -135,8 +133,7 @@ impl Pattern {
             .iter()
             .flat_map(|t| match t {
                 Variable(c) => vec![*c],
-                SubPattern(sp) => sp.vars(),
-                Disjunction(sp) => {
+                Disjunction(sp) | Conjunction(sp) => {
                     sp.0.vars()
                         .into_iter()
                         .chain(sp.1.vars().into_iter())
@@ -287,27 +284,27 @@ impl Pattern {
                         .collect()
                 }
             }
-            SubPattern(subp) => (0..=p.len())
-                .flat_map(|i| -> Vec<_> {
-                    subp.evaluate_helper(
-                        &p[0..i],
-                        bindings.clone(),
-                        variable_spec,
-                        0,
-                        binding_limits,
-                    )
+            Disjunction((t1, t2)) => {
+                let result1 =
+                    t1.evaluate_helper(&p, bindings.clone(), variable_spec, 0, binding_limits);
+                let result2 = t2.evaluate_helper(&p, bindings, variable_spec, 0, binding_limits);
+                result1.into_iter().chain(result2.into_iter()).collect()
+            }
+            Conjunction((t1, t2)) => {
+                let result1 =
+                    t1.evaluate_helper(&p, bindings.clone(), variable_spec, 0, binding_limits);
+                let result2 = t2.evaluate_helper(&p, bindings, variable_spec, 0, binding_limits);
+                result1
                     .into_iter()
-                    .flat_map(|subb| {
-                        self.evaluate_helper(&p[i..], subb, variable_spec, at + 1, binding_limits)
+                    .filter(|b1| {
+                        result2.iter().any(|b2| {
+                            b1.keys().all(|b1k| match b2.get(b1k) {
+                                None => true,
+                                Some(v) => b1.get(b1k) == Some(v),
+                            })
+                        })
                     })
                     .collect()
-                })
-                .collect(),
-            Disjunction(_) => {
-                todo!()
-            }
-            Conjunction(_) => {
-                todo!()
             }
         }
     }
