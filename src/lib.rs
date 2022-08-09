@@ -105,6 +105,31 @@ impl BindingsManager {
 }
 
 impl Pattern {
+    fn len_range(&self) -> (usize, usize) {
+        self.items.iter().fold((0usize, 0usize), |acc, c| {
+            (
+                acc.0
+                    + match c {
+                        Variable(v) => 0, // TODO read from spc
+                        SubPattern(p) => p.len_range().0,
+                        Disjunction(ps) => std::cmp::min(ps.0.len_range().0, ps.1.len_range().0),
+                        Conjunction(ps) => std::cmp::max(ps.0.len_range().0, ps.1.len_range().0),
+                        Anagram(v, u, open) => v.len() + u.len(),
+                        Literal(_) | LiteralFrom(_) | SingleChar => 1,
+                    },
+                acc.1
+                    + match c {
+                        Variable(v) => 1000, // TODO read from spc
+                        SubPattern(p) => p.len_range().1,
+                        Disjunction(ps) => std::cmp::max(ps.0.len_range().1, ps.1.len_range().1),
+                        Conjunction(ps) => std::cmp::max(ps.0.len_range().1, ps.1.len_range().1),
+                        Anagram(v, u, open) => v.len() + u.len() + if *open { 1000 } else { 0 },
+                        Literal(_) | LiteralFrom(_) | SingleChar => 1,
+                    },
+            )
+        })
+    }
+
     fn vars(&self) -> Vec<char> {
         self.items
             .iter()
@@ -300,8 +325,10 @@ impl Query {
         let mut binding_limits: BindingsManager = BindingsManager::default();
 
         for part in &self.parts {
+            let range = part.len_range();
             steps.push(
                 dict.iter()
+                    .filter(|p| p.string.len() >= range.0 && p.string.len() <= range.1)
                     .flat_map(|production| {
                         part.evaluate(production, &self.variables, &binding_limits)
                     })

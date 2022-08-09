@@ -9,7 +9,7 @@ use nom::{
     bytes::complete::tag,
     character::complete::one_of,
     combinator::{map, value},
-    multi::{fold_many0, many1},
+    multi::{fold_many0, many1, separated_list1},
     sequence::{delimited, pair, tuple},
     IResult,
 };
@@ -80,16 +80,20 @@ pub fn production_patttern_term(input: &str) -> IResult<&str, Pattern> {
 }
 
 pub fn parse(input: &str) -> Query {
-    let patternm = parser::production_patttern_term(&input).unwrap();
-    let pattern = patternm.1.clone();
+    // let patternm = parser::production_patttern_term(&input).unwrap();
+    let patterns = separated_list1(tag(";"), production_patttern_term)(&input)
+        .unwrap()
+        .1;
+
     Query {
-        parts: vec![pattern.clone()],
-        variables: pattern
-            .vars()
-            .iter()
+        parts: patterns.clone(),
+        variables: patterns
+            .into_iter()
+            .flat_map(|p| p.vars())
+            .unique()
             .map(|v| {
                 (
-                    *v,
+                    v,
                     VariableSpec {
                         len_min: Some(1),
                         len_max: None,
