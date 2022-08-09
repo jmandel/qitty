@@ -48,6 +48,7 @@
             return {result, elapsedMs, count: result.length}
           }
           q("start"); // force evaluation of lazy_static DICTIONARY
+          runQuery();
           console.log("Ready to qopy");
         });
     </script>
@@ -61,6 +62,5 @@
       const r = qopy(q.replace(" ", ""));
       window.document.getElementById("result").innerHTML = JSON.stringify(r, null, 2);
     }
-    runQuery();
   </script>
 </html>
