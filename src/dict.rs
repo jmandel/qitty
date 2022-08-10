@@ -3,11 +3,9 @@ use crate::*;
 lazy_static! {
 
 
-pub static ref DICTIONARY: Vec<Production> = UKACD17.lines().map(|f| f.to_string())
+pub static ref DICTIONARY: Vec<Production<'static>> = UKACD17.lines()
         .map(|a| Production {
-            string: a
-                .chars()
-                .collect(),
+            string: &a[..],
             bindings: BTreeMap::new(),
         })
         .collect();

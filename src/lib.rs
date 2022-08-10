@@ -1,4 +1,5 @@
 use dict::DICTIONARY;
+use nom::InputTake;
 use wasm_bindgen::prelude::*;
 
 pub mod dict;
@@ -26,13 +27,13 @@ pub struct VariableSpec {
     len_max: Option<usize>,
 }
 
-pub type VariableValue = Vec<char>;
-pub type VariableBindings = BTreeMap<VariableName, VariableValue>;
+pub type VariableValue<'a> = &'a str;
+pub type VariableBindings<'a> = BTreeMap<VariableName, VariableValue<'a>>;
 
 #[derive(Clone, Debug)]
-pub struct Production {
-    string: Vec<char>,
-    bindings: VariableBindings,
+pub struct Production<'a> {
+    string: &'a str,
+    bindings: VariableBindings<'a>,
 }
 
 #[derive(Clone, Debug)]
@@ -52,12 +53,12 @@ pub struct Pattern {
 }
 
 #[derive(Clone)]
-pub struct BindingsManager {
-    bindings: HashSet<VariableBindings>,
+pub struct BindingsManager<'a> {
+    bindings: HashSet<VariableBindings<'a>>,
     variables: HashSet<BTreeSet<VariableName>>,
 }
 
-impl Default for BindingsManager {
+impl<'a> Default for BindingsManager<'a> {
     fn default() -> Self {
         BindingsManager {
             bindings: HashSet::new(),
@@ -66,8 +67,8 @@ impl Default for BindingsManager {
     }
 }
 
-impl BindingsManager {
-    fn add(&mut self, bindings: &VariableBindings) {
+impl<'a> BindingsManager<'a> {
+    fn add(&mut self, bindings: &VariableBindings<'a>) {
         for subset in bindings.keys().powerset() {
             self.bindings.insert(
                 subset
@@ -143,12 +144,12 @@ impl Pattern {
             })
             .collect()
     }
-    fn evaluate(
+    fn evaluate<'a>(
         &self,
-        p: &Production,
+        p: &Production<'a>,
         variable_spec: &HashMap<char, VariableSpec>,
         binding_limits: &BindingsManager,
-    ) -> Vec<Production> {
+    ) -> Vec<Production<'a>> {
         self.evaluate_helper(&p.string, BTreeMap::new(), variable_spec, 0, binding_limits)
             .into_iter()
             .map(|survived_p| Production {
@@ -158,14 +159,14 @@ impl Pattern {
             .collect()
     }
 
-    fn evaluate_helper(
+    fn evaluate_helper<'a>(
         &self,
-        p: &[char],
-        bindings: VariableBindings,
+        p: &'a str,
+        bindings: VariableBindings<'a>,
         variable_spec: &HashMap<char, VariableSpec>,
         at: usize,
         binding_limits: &BindingsManager,
-    ) -> Vec<VariableBindings> {
+    ) -> Vec<VariableBindings<'a>> {
         if at == self.items.len() {
             return if p.len() == 0 { vec![bindings] } else { vec![] };
         }
@@ -185,7 +186,7 @@ impl Pattern {
                 }
             }
             LiteralFrom(cs) => {
-                if p.len() > 0 && cs.contains(&p[0]) {
+                if p.len() > 0 && cs.contains(&p.chars().nth(0).unwrap()) {
                     self.evaluate_helper(&p[1..], bindings, variable_spec, at + 1, binding_limits)
                 } else {
                     vec![]
@@ -201,9 +202,9 @@ impl Pattern {
                             return vec![];
                         }
 
-                        let mut start: Vec<&char> = p[0..target_len].iter().collect();
+                        let mut start: Vec<char> = p[0..target_len].chars().collect();
                         for &f in fodder {
-                            match start.iter().position(|v| **v == f) {
+                            match start.iter().position(|v| *v == f) {
                                 None => return vec![],
                                 Some(pos) => {
                                     start.remove(pos);
@@ -262,7 +263,7 @@ impl Pattern {
                     (range_to_scan.0..=range_to_scan.1)
                         .filter(|&i| i <= p.len())
                         .flat_map(|i| {
-                            let bind_as: Vec<char> = p[0..i].iter().copied().collect();
+                            let bind_as: &str = &p[0..i];
                             let proposed_binding: VariableBindings = bindings
                                 .clone()
                                 .into_iter()
@@ -317,7 +318,7 @@ pub struct Query {
 }
 
 impl Query {
-    fn execute(&self, dict: &Vec<Production>) -> Vec<Vec<Production>> {
+    fn execute<'a>(&self, dict: &Vec<Production<'a>>) -> Vec<Vec<Production<'a>>> {
         let mut steps: Vec<Vec<Production>> = vec![];
         let mut binding_limits: BindingsManager = BindingsManager::default();
 
@@ -339,7 +340,7 @@ impl Query {
         self.expand(&steps, BTreeMap::new())
     }
 
-    fn expand(&self, plist: &[Vec<Production>], b: VariableBindings) -> Vec<Vec<Production>> {
+    fn expand<'a>(&self, plist: &[Vec<Production<'a>>], b: VariableBindings<'a>) -> Vec<Vec<Production<'a>>> {
         if plist.len() == 0 {
             return vec![vec![]];
         }
@@ -377,7 +378,7 @@ pub fn q(query: &str) -> String {
     write!(&mut s, "[").unwrap();
     let result = q_for_productions(query);
     for (i, r) in result.iter().enumerate() {
-        let rep = r.iter().map(|p| p.string.iter().join("")).join(";");
+        let rep = r.iter().map(|s|s.string).join(";");
         write!(&mut s, "{:?}", rep).unwrap();
         if i < result.len() - 1 {
             writeln!(&mut s, ",").unwrap();
