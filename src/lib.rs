@@ -76,35 +76,33 @@ impl<'a> BindingsManager<'a> {
             self.variables.insert(subset.into_iter().cloned().collect());
         }
     }
-    fn allows(
-        &self,
+    fn subsets_for_allows(&self, 
         bindings: &VariableBindings,
-        (plus_var, plus_binding): (char, &[&str]),
-    ) -> Vec<bool> {
-        let subsets: Vec<_> = bindings
+        plus_var: char) -> Vec<Vec<char>> {
+            bindings
             .keys()
             .powerset()
             .filter(|subset| {
                 self.variables.contains(&BTreeSet::from_iter(
-                    subset.iter().map(|v| **v).chain([plus_var]),
+                    subset.into_iter().map(|v| **v).chain([plus_var]),
                 ))
-            })
-            .collect();
-
-        plus_binding
-            .iter()
-            .map(|b| {
-                subsets.iter().all(|subset| {
+            }).map(|v| v.clone().into_iter().copied().collect()).collect()
+    }
+    fn allows(
+        &self,
+        subsets: &Vec<Vec<char>>,
+        bindings: &VariableBindings,
+        (plus_var, plus_binding): (char, &str),
+    ) -> bool {
+            subsets.iter().all(|subset| {
                     self.bindings.contains(
                         &subset
                             .into_iter()
-                            .chain([&&plus_var])
-                            .map(|v| (**v, *(bindings.get(v).unwrap_or(b))))
+                            .chain([&plus_var])
+                            .map(|v| (*v, *(bindings.get(v).unwrap_or(&plus_binding))))
                             .collect(),
                     )
                 })
-            })
-            .collect()
     }
 }
 
@@ -115,7 +113,6 @@ impl Pattern {
             .iter()
             .skip(start)
             .fold((0usize, 0usize), |acc, c| {
-                // println!("Folding {:?}, {:?} {:?}", acc, c, bindings);
                 (
                     acc.0
                         + match c {
@@ -171,7 +168,6 @@ impl Pattern {
         p: &Production<'a>,
         variable_spec: &HashMap<char, VariableSpec>,
         binding_limits: &BindingsManager,
-        len_range: (usize, usize),
     ) -> Vec<Production<'a>> {
         // println!("begin with {} with range{:?}", p.streak, len_range);
         self.evaluate_helper(
@@ -180,7 +176,6 @@ impl Pattern {
             variable_spec,
             0,
             binding_limits,
-            len_range,
         )
         .into_iter()
         .map(|survived_p| Production {
@@ -197,11 +192,7 @@ impl Pattern {
         variable_spec: &HashMap<char, VariableSpec>,
         at: usize,
         binding_limits: &BindingsManager,
-        len_range: (usize, usize),
     ) -> Vec<VariableBindings<'a>> {
-        if len_range.0 > p.len() {
-            return vec![];
-        }
 
         if at == self.items.len() {
             return if p.len() == 0 { vec![bindings] } else { vec![] };
@@ -215,7 +206,6 @@ impl Pattern {
                         variable_spec,
                         at + 1,
                         binding_limits,
-                        (len_range.0.saturating_sub(1), len_range.1.saturating_sub(1)),
                     )
                 } else {
                     vec![]
@@ -229,7 +219,6 @@ impl Pattern {
                         variable_spec,
                         at + 1,
                         binding_limits,
-                        (len_range.0.saturating_sub(1), len_range.1.saturating_sub(1)),
                     )
                 } else {
                     vec![]
@@ -273,10 +262,6 @@ impl Pattern {
                             variable_spec,
                             at + 1,
                             binding_limits,
-                            (
-                                len_range.0.saturating_sub(target_len),
-                                len_range.1.saturating_sub(target_len),
-                            ),
                         );
                     })
                     .collect()
@@ -291,14 +276,18 @@ impl Pattern {
                         variable_spec,
                         at + 1,
                         binding_limits,
-                        (
-                            len_range.0.saturating_sub(bound_len),
-                            len_range.1.saturating_sub(bound_len),
-                        ),
                     )
                 } else if bound.is_some() {
                     vec![]
                 } else {
+                    let min_additional_matches = self.items[at+1..].iter().filter(|i| if let Variable(otherv) =i {
+                        otherv == varname
+                    } else {
+                        false
+                    }).count();
+
+                    let subsets = binding_limits.subsets_for_allows(&bindings, *varname);
+
                     let range_to_scan = (
                         variable_spec
                             .get(varname)
@@ -309,45 +298,17 @@ impl Pattern {
                             .get(varname)
                             .unwrap()
                             .len_max
-                            .unwrap_or(p.len()),
+                            .unwrap_or(p.len())
                     );
 
-                    let remaining_range = self.len_range_starting_at(at + 1, &bindings);
-                    let streak_range: Vec<_> = (range_to_scan.0..=range_to_scan.1)
+
+                    (range_to_scan.0..=range_to_scan.1)
                         .filter(|&i| {
                             i <= p.len()
-                                && p.len() - i >= remaining_range.0
-                                && p.len() - i <= remaining_range.1
                         })
-                        .collect();
-
-                    let bindings_for_streak = binding_limits.allows(
-                        &bindings,
-                        (
-                            *varname,
-                            &streak_range
-                                .iter()
-                                .map(|i| &p[0..*i])
-                                .into_iter()
-                                .collect::<Vec<_>>(),
-                        ),
-                    );
-
-                    let min_additional_matches = self.items[at+1..].iter().filter(|i| if let Variable(otherv) =i {
-                        otherv == varname
-                    } else {
-                        false
-                    }).count();
-
-                    streak_range
-                        .iter()
-                        .zip(bindings_for_streak)
-                        .flat_map(|(&i, bindings_fit)| {
-                            if !bindings_fit {
-                                return vec![];
-                            }
+                        .filter(|&i| binding_limits.allows(&subsets, &bindings, (*varname, &p[..i])))
+                        .flat_map(|i| {
                             let bind_as: &str = &p[0..i];
-
                             let mut num_matches_found = 0;
                             let mut min_match_spot = i;
                             while num_matches_found < min_additional_matches {
@@ -368,7 +329,6 @@ impl Pattern {
                                 variable_spec,
                                 at + 1,
                                 binding_limits,
-                                remaining_range,
                             )
                         })
                         .collect()
@@ -381,10 +341,9 @@ impl Pattern {
                     variable_spec,
                     0,
                     binding_limits,
-                    len_range,
                 ); // fix len_range
                 let result2 =
-                    t2.evaluate_helper(&p, bindings, variable_spec, 0, binding_limits, len_range);
+                    t2.evaluate_helper(&p, bindings, variable_spec, 0, binding_limits,);
                 result1.into_iter().chain(result2.into_iter()).collect()
             }
             Conjunction((t1, t2)) => {
@@ -394,10 +353,9 @@ impl Pattern {
                     variable_spec,
                     0,
                     binding_limits,
-                    len_range,
                 ); // fix len_range
                 let result2 =
-                    t2.evaluate_helper(&p, bindings, variable_spec, 0, binding_limits, len_range);
+                    t2.evaluate_helper(&p, bindings, variable_spec, 0, binding_limits,);
                 result1
                     .into_iter()
                     .filter(|b1| {
@@ -432,7 +390,7 @@ impl Query {
                     // .filter(|p| p.streak == "adenohypophysis")
                     .filter(|p| p.streak.len() >= range.0 && p.streak.len() <= range.1)
                     .flat_map(|production| {
-                        part.evaluate(production, &self.variables, &binding_limits, range)
+                        part.evaluate(production, &self.variables, &binding_limits,)
                     })
                     .collect(),
             );
