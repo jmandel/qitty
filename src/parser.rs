@@ -1,5 +1,5 @@
 use core::num;
-use std::ops::Sub;
+use std::{ops::Sub, str::FromStr};
 
 #[allow(unused_imports)]
 use crate::*;
@@ -8,12 +8,19 @@ extern crate nom;
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::one_of,
-    combinator::{map, value},
+    character::complete::{digit1, one_of},
+    combinator::{map, opt, value},
     multi::{fold_many0, many1, separated_list1},
+    number,
     sequence::{delimited, pair, tuple},
     IResult,
 };
+
+#[derive(Clone, Debug)]
+enum QueryTerm {
+    QueryTermPattern(Pattern),
+    QueryTermVariableLength(char, usize, Option<usize>),
+}
 
 fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
     let (input, m) = alt((
@@ -39,7 +46,10 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
                 )]
             },
         ),
-        value(vec![LiteralFrom("abcdefghijklmnopqrstuvwxyz".chars().collect())], tag(".")),
+        value(
+            vec![LiteralFrom("abcdefghijklmnopqrstuvwxyz".chars().collect())],
+            tag("."),
+        ),
         value(vec![LiteralFrom("aeiou".chars().collect())], tag("@")),
         value(vec![Anagram(vec![], vec![], true)], tag("*")),
         value(
@@ -50,14 +60,37 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
         map(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), |c| vec![Variable(c)]),
         map(
             delimited(tag("("), production_patttern_term, tag(")")),
-            |o| o.items
+            |o| match o {
+                QueryTerm::QueryTermPattern(p) => p.items,
+                _ => panic!("Parenthetical terms can only be patterns"),
+            },
         ),
     ))(input)?;
 
     Ok((input, m))
 }
+fn production_varconstraint(input: &str) -> IResult<&str, QueryTerm> {
+    let (input, result) =
+        delimited(tag("|"), one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), tag("|"))(input)?;
 
-pub fn production_patttern_term(input: &str) -> IResult<&str, Pattern> {
+    let (input, len_min): (&str, usize) = map(tuple((tag("="), digit1)), |v| {
+        FromStr::from_str(v.1).unwrap()
+    })(input)?;
+
+    let (input, len_max): (&str, Option<Option<usize>>) = opt(map(tuple((tag("-"), opt(digit1))), |v| {
+        v.1.map(|v|FromStr::from_str(v).ok().unwrap())
+    }))(input)?;
+
+    Ok((
+        input,
+        QueryTerm::QueryTermVariableLength(result, len_min, match len_max {
+            None => Some(len_min),
+            Some(v) => v
+        })
+    ))
+}
+
+fn production_patttern_term(input: &str) -> IResult<&str, QueryTerm> {
     let (input, t1) = many1(production_pattern_item)(input)?;
     let t1: Vec<_> = t1.into_iter().flatten().collect();
 
@@ -65,48 +98,81 @@ pub fn production_patttern_term(input: &str) -> IResult<&str, Pattern> {
         pair(alt((tag("&"), tag("|"))), many1(production_pattern_item)),
         || t1.clone(),
         |acc, b| {
-            let bItems: Vec<_> = b.1.into_iter().flatten().collect();
+            let b_items: Vec<_> = b.1.into_iter().flatten().collect();
             if b.0 == "&" {
                 vec![Conjunction((
                     Pattern { items: acc },
-                    Pattern { items: bItems },
+                    Pattern { items: b_items },
                 ))]
             } else {
                 vec![Disjunction((
                     Pattern { items: acc },
-                    Pattern { items: bItems },
+                    Pattern { items: b_items },
                 ))]
             }
         },
     )(input)?;
 
-    // TODO remove subpatters altogether
-
-    Ok((input, Pattern { items }))
+    Ok((input, QueryTerm::QueryTermPattern(Pattern { items })))
 }
 
 pub fn parse(input: &str) -> Query {
     // let patternm = parser::production_patttern_term(&input).unwrap();
-    let patterns = separated_list1(tag(";"), production_patttern_term)(&input)
-        .unwrap()
-        .1;
+    let patterns = separated_list1(
+        tag(";"),
+        alt((production_patttern_term, production_varconstraint)),
+    )(&input)
+    .unwrap()
+    .1;
+    let parts: Vec<Pattern> = patterns
+        .iter()
+        .filter_map(|p| {
+            if let QueryTerm::QueryTermPattern(pattern) = p {
+                Some(pattern)
+            } else {
+                None
+            }
+        })
+        .cloned()
+        .collect();
 
     Query {
-        parts: patterns.clone(),
+        parts: parts.clone(),
         variables: patterns
             .into_iter()
-            .flat_map(|p| p.vars())
-            .unique()
-            .map(|v| {
-                (
-                    v,
-                    VariableSpec {
-                        len_min: Some(1),
-                        len_max: None,
-                    },
-                )
+            .filter_map(|p| {
+                if let QueryTerm::QueryTermVariableLength(var, lenmin, lenmax) = p {
+                    Some((
+                        var,
+                        VariableSpec {
+                            len_min: Some(lenmin),
+                            len_max: lenmax,
+                        },
+                    ))
+                } else {
+                    None
+                }
             })
-            .collect(),
+            .chain(parts.iter().flat_map(|p| -> Vec<_> {
+                p.vars()
+                    .iter()
+                    .map(|&v| {
+                        (
+                            v,
+                            VariableSpec {
+                                len_min: Some(1),
+                                len_max: None,
+                            },
+                        )
+                    })
+                    .collect()
+            }))
+            .fold(HashMap::new(), |mut acc, b| {
+                if !acc.iter().any(|c| c.0 == &b.0) {
+                    acc.insert(b.0, b.1);
+                }
+                acc
+            }),
     }
 }
 

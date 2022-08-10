@@ -16,6 +16,14 @@ fn aa(c: &mut Criterion) {
             q_for_productions(&"AA");
         })
     });
+
+    let b2="AB;BA;|A|=4;|B|=4";
+    group.bench_function(b2, |b| {
+        b.iter(|| {
+            q_for_productions(b2);
+        })
+    });
+
 }
 
 
