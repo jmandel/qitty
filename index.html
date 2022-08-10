@@ -45,8 +45,8 @@
           window.qopy = (probe) => {
             const t0 = new Date().getTime();
             const result = JSON.parse(q(probe)).map(v => v.split(";"));
-            const elapsedMs = new Date().getTime() - t0;
-            return {result, elapsedMs, count: result.length}
+            const elapsedMilliseconds = new Date().getTime() - t0;
+            return {count: result.length, elapsedMilliseconds, result}
           }
           q("start"); // force evaluation of lazy_static DICTIONARY
           runQuery();
@@ -54,13 +54,20 @@
         });
     </script>
   </body>
-  <input id="q" type="text" value="....sand" />
+  <input id="q" type="text" value="....sand"/>
   <button onclick="runQuery()" >Run</button>
   <textarea id="result" READONLY></textarea>
   <script>
+    const q = window.document.getElementById("q");
+    q.select();
+    q.addEventListener("keyup", function(event) {
+      if (event.key === "Enter") {
+        runQuery()
+      }
+    });
+
     function runQuery(){
-      const q = window.document.getElementById("q").value;
-      const r = qopy(q.replace(" ", ""));
+      const r = qopy(q.value.replaceAll(" ", ""));
       window.document.getElementById("result").innerHTML = JSON.stringify(r, null, 2);
     }
   </script>
