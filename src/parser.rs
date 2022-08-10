@@ -39,7 +39,7 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
                 )]
             },
         ),
-        value(vec![SingleChar], tag(".")),
+        value(vec![LiteralFrom("abcdefghijklmnopqrstuvwxyz".chars().collect())], tag(".")),
         value(vec![LiteralFrom("aeiou".chars().collect())], tag("@")),
         value(vec![Anagram(vec![], vec![], true)], tag("*")),
         value(
@@ -50,7 +50,7 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
         map(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), |c| vec![Variable(c)]),
         map(
             delimited(tag("("), production_patttern_term, tag(")")),
-            |o| o.items,
+            |o| o.items
         ),
     ))(input)?;
 
@@ -125,6 +125,6 @@ mod tests {
         let result = q(&parg);
         let elapsed = now.elapsed();
         println!("Result: {}", result);
-        println!("Processing: {:?}", elapsed);
+        println!("Processing: {:?} -- #{}", elapsed, result.lines().count());
     }
 }

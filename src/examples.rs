@@ -54,11 +54,5 @@ lazy_static! {
         ),]),
     };
     
-    pub(crate) static ref Q_FEATURES: Query = Query {
-        parts: vec![Pattern {
-            items: vec![SingleChar, LiteralFrom(vec!['a', 'b', 'c'])],
-        },],
-        variables: HashMap::from_iter([]),
-    };
 }
 

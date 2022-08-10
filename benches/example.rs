@@ -1,21 +1,6 @@
 extern crate qitty;
 use qitty::*;
 
-// #[macro_use]
-// extern crate bencher;
-// use bencher::Bencher;
-
-// fn thou_anagram_sand(bench: &mut Bencher) {
-//     bench.iter(|| {
-//         q_for_productions(&"....(/sand)");
-//     })
-// }
-
-fn custom_criterion() -> Criterion {
-    Criterion::default().with_profiler(FlamegraphProfiler::new(100))
-}
-
-
 fn aa(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("sample-size-example");
@@ -33,19 +18,12 @@ fn aa(c: &mut Criterion) {
     });
 }
 
-// benchmark_group!(benchess, thou_anagram_sand, aa);
-// benchmark_main!(benchess);
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-
-// pub fn criterion_benchmark(c: &mut Criterion) {
-//     c.bench_function("fib 20", |b| b.iter(|| fibonacci(black_box(20))));
-// }
+use criterion::{criterion_group, criterion_main, Criterion};
 
 criterion_group!{
     name = benches;
     config = Criterion::default().with_profiler(FlamegraphProfiler::new(100));
-
     targets = aa
 }
 

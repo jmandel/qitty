@@ -5,7 +5,7 @@ lazy_static! {
 
 pub static ref DICTIONARY: Vec<Production<'static>> = UKACD17.lines()
         .map(|a| Production {
-            string: &a[..],
+            streak: &a[..],
             bindings: BTreeMap::new(),
         })
         .collect();
