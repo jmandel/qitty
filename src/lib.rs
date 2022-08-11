@@ -320,30 +320,14 @@ impl Pattern {
                 }
             }
             Disjunction((t1, t2)) => {
-                let (a, b) = t1.len_range();
+                let (a1, b1) = t1.len_range();
+                let (a2, b2) = t2.len_range();
+                let (suffix_a, suffix_b) = self.len_range_starting_at(at + 1, &bindings);
+                let a = a1.min(a2).max(p.len().saturating_sub(suffix_b));
+                let b = b1.max(b2).min(p.len().saturating_sub(suffix_a));
+
                 (a..=b)
-                    .flat_map(|i| {
-                        let result1 = t1.evaluate_helper(
-                            &p[..i],
-                            bindings.clone(),
-                            variable_spec,
-                            0,
-                            binding_limits,
-                        ); // fix len_range
-                        let result2 = t2.evaluate_helper(
-                            &p[..i],
-                            bindings.clone(),
-                            variable_spec,
-                            0,
-                            binding_limits,
-                        );
-                        result1.into_iter().chain(result2.into_iter()).unique()
-                    })
-                    .collect()
-            }
-            Conjunction((t1, t2)) => {
-                let (a, b) = t1.len_range();
-                (a..=b)
+                    .filter(|i| *i <= p.len())
                     .flat_map(|i| {
                         let result1 = t1.evaluate_helper(
                             &p[..i],
@@ -361,15 +345,51 @@ impl Pattern {
                         );
                         result1
                             .into_iter()
-                            .filter(|b1| {
-                                true || result2.iter().any(|b2| {
-                                    b1.keys().all(|b1k| match b2.get(b1k) {
-                                        None => true,
-                                        Some(v) => b1.get(b1k) == Some(v),
-                                    })
-                                })
+                            .chain(result2.into_iter())
+                            .unique()
+                            .flat_map(move |discovered_bindings| {
+                                self.evaluate_helper(
+                                    &p[i..],
+                                    discovered_bindings,
+                                    variable_spec,
+                                    at + 1,
+                                    binding_limits,
+                                )
                             })
-                            .collect::<Vec<_>>()
+                    })
+                    .collect()
+            }
+            Conjunction((t1, t2)) => {
+                let (a1, b1) = t1.len_range();
+                let (a2, b2) = t2.len_range();
+                let (suffix_a, suffix_b) = self.len_range_starting_at(at + 1, &bindings);
+                let a = a1.max(a2).max(p.len().saturating_sub(suffix_b));
+                let b = b1.min(b2).min(p.len().saturating_sub(suffix_a));
+
+                (a..=b)
+                    .filter(|i| *i <= p.len())
+                    .flat_map(|i| {
+                        t1.evaluate_helper(
+                            &p[..i],
+                            bindings.clone(),
+                            variable_spec,
+                            0,
+                            binding_limits,
+                        )
+                        .into_iter()
+                        .flat_map(|bindings| {
+                            t2.evaluate_helper(&p[..i], bindings, variable_spec, 0, binding_limits)
+                        })
+                        .flat_map(move |discovered_bindings| {
+                            self.evaluate_helper(
+                                &p[i..],
+                                discovered_bindings,
+                                variable_spec,
+                                at + 1,
+                                binding_limits,
+                            )
+                        })
+                        .collect::<Vec<_>>()
                     })
                     .collect()
             }
