@@ -1,4 +1,4 @@
-use dict::DICTIONARY;
+use crate::dict::DICTIONARY;
 use wasm_bindgen::prelude::*;
 
 pub mod dict;
@@ -28,7 +28,7 @@ pub struct VariableSpec {
 pub type VariableValue<'a> = &'a str;
 pub type VariableBindings<'a> = BTreeMap<VariableName, VariableValue<'a>>;
 
-#[derive(Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub struct Production<'a> {
     streak: &'a str,
     bindings: VariableBindings<'a>,
@@ -76,17 +76,17 @@ impl<'a> BindingsManager<'a> {
             self.variables.insert(subset.into_iter().cloned().collect());
         }
     }
-    fn subsets_for_allows(&self, 
-        bindings: &VariableBindings,
-        plus_var: char) -> Vec<Vec<char>> {
-            bindings
+    fn subsets_for_allows(&self, bindings: &VariableBindings, plus_var: char) -> Vec<Vec<char>> {
+        bindings
             .keys()
             .powerset()
             .filter(|subset| {
                 self.variables.contains(&BTreeSet::from_iter(
                     subset.into_iter().map(|v| **v).chain([plus_var]),
                 ))
-            }).map(|v| v.clone().into_iter().copied().collect()).collect()
+            })
+            .map(|v| v.clone().into_iter().copied().collect())
+            .collect()
     }
     fn allows(
         &self,
@@ -94,15 +94,15 @@ impl<'a> BindingsManager<'a> {
         bindings: &VariableBindings,
         (plus_var, plus_binding): (char, &str),
     ) -> bool {
-            subsets.iter().all(|subset| {
-                    self.bindings.contains(
-                        &subset
-                            .into_iter()
-                            .chain([&plus_var])
-                            .map(|v| (*v, *(bindings.get(v).unwrap_or(&plus_binding))))
-                            .collect(),
-                    )
-                })
+        subsets.iter().all(|subset| {
+            self.bindings.contains(
+                &subset
+                    .into_iter()
+                    .chain([&plus_var])
+                    .map(|v| (*v, *(bindings.get(v).unwrap_or(&plus_binding))))
+                    .collect(),
+            )
+        })
     }
 }
 
@@ -170,19 +170,13 @@ impl Pattern {
         binding_limits: &BindingsManager,
     ) -> Vec<Production<'a>> {
         // println!("begin with {} with range{:?}", p.streak, len_range);
-        self.evaluate_helper(
-            &p.streak,
-            BTreeMap::new(),
-            variable_spec,
-            0,
-            binding_limits,
-        )
-        .into_iter()
-        .map(|survived_p| Production {
-            streak: p.streak.clone(),
-            bindings: survived_p,
-        })
-        .collect()
+        self.evaluate_helper(&p.streak, BTreeMap::new(), variable_spec, 0, binding_limits)
+            .into_iter()
+            .map(|survived_p| Production {
+                streak: p.streak.clone(),
+                bindings: survived_p,
+            })
+            .collect()
     }
 
     fn evaluate_helper<'a>(
@@ -193,33 +187,20 @@ impl Pattern {
         at: usize,
         binding_limits: &BindingsManager,
     ) -> Vec<VariableBindings<'a>> {
-
         if at == self.items.len() {
             return if p.len() == 0 { vec![bindings] } else { vec![] };
         }
         match self.items.get(at).unwrap() {
             Literal(c) => {
                 if p.starts_with(&[*c]) {
-                    self.evaluate_helper(
-                        &p[1..],
-                        bindings,
-                        variable_spec,
-                        at + 1,
-                        binding_limits,
-                    )
+                    self.evaluate_helper(&p[1..], bindings, variable_spec, at + 1, binding_limits)
                 } else {
                     vec![]
                 }
             }
             LiteralFrom(cs) => {
                 if p.len() > 0 && cs.contains(&p.chars().nth(0).unwrap()) {
-                    self.evaluate_helper(
-                        &p[1..],
-                        bindings,
-                        variable_spec,
-                        at + 1,
-                        binding_limits,
-                    )
+                    self.evaluate_helper(&p[1..], bindings, variable_spec, at + 1, binding_limits)
                 } else {
                     vec![]
                 }
@@ -280,11 +261,16 @@ impl Pattern {
                 } else if bound.is_some() {
                     vec![]
                 } else {
-                    let min_additional_matches = self.items[at+1..].iter().filter(|i| if let Variable(otherv) =i {
-                        otherv == varname
-                    } else {
-                        false
-                    }).count();
+                    let min_additional_matches = self.items[at + 1..]
+                        .iter()
+                        .filter(|i| {
+                            if let Variable(otherv) = i {
+                                otherv == varname
+                            } else {
+                                false
+                            }
+                        })
+                        .count();
 
                     let subsets = binding_limits.subsets_for_allows(&bindings, *varname);
 
@@ -298,15 +284,14 @@ impl Pattern {
                             .get(varname)
                             .unwrap()
                             .len_max
-                            .unwrap_or(p.len())
+                            .unwrap_or(p.len()),
                     );
 
-
                     (range_to_scan.0..=range_to_scan.1)
+                        .filter(|&i| i <= p.len())
                         .filter(|&i| {
-                            i <= p.len()
+                            binding_limits.allows(&subsets, &bindings, (*varname, &p[..i]))
                         })
-                        .filter(|&i| binding_limits.allows(&subsets, &bindings, (*varname, &p[..i])))
                         .flat_map(|i| {
                             let bind_as: &str = &p[0..i];
                             let mut num_matches_found = 0;
@@ -320,7 +305,7 @@ impl Pattern {
                                     }
                                 }
                             }
-                            
+
                             let mut shadowed = bindings.clone();
                             shadowed.insert(*varname, bind_as);
                             self.evaluate_helper(
@@ -335,36 +320,56 @@ impl Pattern {
                 }
             }
             Disjunction((t1, t2)) => {
-                let result1 = t1.evaluate_helper(
-                    &p,
-                    bindings.clone(),
-                    variable_spec,
-                    0,
-                    binding_limits,
-                ); // fix len_range
-                let result2 =
-                    t2.evaluate_helper(&p, bindings, variable_spec, 0, binding_limits,);
-                result1.into_iter().chain(result2.into_iter()).collect()
+                let (a, b) = t1.len_range();
+                (a..=b)
+                    .flat_map(|i| {
+                        let result1 = t1.evaluate_helper(
+                            &p[..i],
+                            bindings.clone(),
+                            variable_spec,
+                            0,
+                            binding_limits,
+                        ); // fix len_range
+                        let result2 = t2.evaluate_helper(
+                            &p[..i],
+                            bindings.clone(),
+                            variable_spec,
+                            0,
+                            binding_limits,
+                        );
+                        result1.into_iter().chain(result2.into_iter()).unique()
+                    })
+                    .collect()
             }
             Conjunction((t1, t2)) => {
-                let result1 = t1.evaluate_helper(
-                    &p,
-                    bindings.clone(),
-                    variable_spec,
-                    0,
-                    binding_limits,
-                ); // fix len_range
-                let result2 =
-                    t2.evaluate_helper(&p, bindings, variable_spec, 0, binding_limits,);
-                result1
-                    .into_iter()
-                    .filter(|b1| {
-                        result2.iter().any(|b2| {
-                            b1.keys().all(|b1k| match b2.get(b1k) {
-                                None => true,
-                                Some(v) => b1.get(b1k) == Some(v),
+                let (a, b) = t1.len_range();
+                (a..=b)
+                    .flat_map(|i| {
+                        let result1 = t1.evaluate_helper(
+                            &p[..i],
+                            bindings.clone(),
+                            variable_spec,
+                            0,
+                            binding_limits,
+                        ); // fix len_range
+                        let result2 = t2.evaluate_helper(
+                            &p[..i],
+                            bindings.clone(),
+                            variable_spec,
+                            0,
+                            binding_limits,
+                        );
+                        result1
+                            .into_iter()
+                            .filter(|b1| {
+                                true || result2.iter().any(|b2| {
+                                    b1.keys().all(|b1k| match b2.get(b1k) {
+                                        None => true,
+                                        Some(v) => b1.get(b1k) == Some(v),
+                                    })
+                                })
                             })
-                        })
+                            .collect::<Vec<_>>()
                     })
                     .collect()
             }
@@ -387,10 +392,9 @@ impl Query {
             let range = part.len_range();
             steps.push(
                 dict.iter()
-                    // .filter(|p| p.streak == "adenohypophysis")
                     .filter(|p| p.streak.len() >= range.0 && p.streak.len() <= range.1)
                     .flat_map(|production| {
-                        part.evaluate(production, &self.variables, &binding_limits,)
+                        part.evaluate(production, &self.variables, &binding_limits)
                     })
                     .collect(),
             );

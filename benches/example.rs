@@ -2,7 +2,6 @@ extern crate qitty;
 use qitty::*;
 
 fn aa(c: &mut Criterion) {
-
     let mut group = c.benchmark_group("sample-size-example");
     group.bench_function("tousand", |b| {
         b.iter(|| {
@@ -17,19 +16,17 @@ fn aa(c: &mut Criterion) {
         })
     });
 
-    let b2="AB;BA;|A|=4;|B|=4";
+    let b2 = "AB;BA;|A|=4;|B|=4";
     group.bench_function(b2, |b| {
         b.iter(|| {
             q_for_productions(b2);
         })
     });
-
 }
-
 
 use criterion::{criterion_group, criterion_main, Criterion};
 
-criterion_group!{
+criterion_group! {
     name = benches;
     config = Criterion::default().with_profiler(FlamegraphProfiler::new(100));
     targets = aa
@@ -37,13 +34,11 @@ criterion_group!{
 
 criterion_main!(benches);
 
-
 use std::{fs::File, os::raw::c_int, path::Path};
 
 use criterion::profiler::Profiler;
 
 use pprof::ProfilerGuard;
-
 
 /// Small custom profiler that can be used with Criterion to create a flamegraph for benchmarks.
 /// Also see [the Criterion documentation on this][custom-profiler].

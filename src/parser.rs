@@ -77,16 +77,21 @@ fn production_varconstraint(input: &str) -> IResult<&str, QueryTerm> {
         FromStr::from_str(v.1).unwrap()
     })(input)?;
 
-    let (input, len_max): (&str, Option<Option<usize>>) = opt(map(tuple((tag("-"), opt(digit1))), |v| {
-        v.1.map(|v|FromStr::from_str(v).ok().unwrap())
-    }))(input)?;
+    let (input, len_max): (&str, Option<Option<usize>>) =
+        opt(map(tuple((tag("-"), opt(digit1))), |v| {
+            v.1.map(|v| FromStr::from_str(v).ok().unwrap())
+        }))(input)?;
 
     Ok((
         input,
-        QueryTerm::QueryTermVariableLength(result, len_min, match len_max {
-            None => Some(len_min),
-            Some(v) => v
-        })
+        QueryTerm::QueryTermVariableLength(
+            result,
+            len_min,
+            match len_max {
+                None => Some(len_min),
+                Some(v) => v,
+            },
+        ),
     ))
 }
 
@@ -187,6 +192,7 @@ mod tests {
         let parg: String = env::args().last().unwrap();
         q("start");
         println!("{:?}", parse(&parg));
+        println!("lenrange {:?}", parse(&parg).parts[0].len_range());
         let now = SystemTime::now();
         let result = q(&parg);
         let elapsed = now.elapsed();

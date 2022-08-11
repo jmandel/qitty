@@ -1,15 +1,13 @@
 use crate::*;
 
 lazy_static! {
-
-
-pub static ref DICTIONARY: Vec<Production<'static>> = UKACD17.lines()
+    pub static ref DICTIONARY: Vec<Production<'static>> = UKACD17
+        .lines()
         .map(|a| Production {
             streak: &a[..],
             bindings: BTreeMap::new(),
         })
         .collect();
-
 }
 
 pub static UKACD17: &str = r#"a

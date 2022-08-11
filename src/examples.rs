@@ -35,7 +35,6 @@ lazy_static! {
             ),
         ]),
     };
-    
     pub(crate) static ref Q_POY: Query = Query {
         parts: vec![
             Pattern {
@@ -53,6 +52,4 @@ lazy_static! {
             },
         ),]),
     };
-    
 }
-
