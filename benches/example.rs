@@ -3,25 +3,35 @@ use qitty::*;
 
 fn aa(c: &mut Criterion) {
     let mut group = c.benchmark_group("sample-size-example");
-    group.bench_function("tousand", |b| {
-        b.iter(|| {
-            q_for_productions(&"thou/sand");
-        })
-    });
+    // group.bench_function("tousand", |b| {
+    //     b.iter(|| {
+    //         q_for_productions(&"thou/sand");
+    //     })
+    // });
 
+    // group.sample_size(10);
+    // group.bench_function("aa", |b| {
+    //     b.iter(|| {
+    //         q_for_productions(&"AA");
+    //     })
+    // });
+
+    // let b2 = "AB;BA;|A|=4;|B|=4";
+    // group.bench_function(b2, |b| {
+    //     b.iter(|| {
+    //         q_for_productions(b2);
+    //     })
+    // });
     group.sample_size(10);
-    group.bench_function("aa", |b| {
+
+    let b3= "AB;BA;|A|=6-;|B|=5-";
+    group.bench_function(b3, |b| {
         b.iter(|| {
-            q_for_productions(&"AA");
+            q_for_productions(b3);
         })
     });
 
-    let b2 = "AB;BA;|A|=4;|B|=4";
-    group.bench_function(b2, |b| {
-        b.iter(|| {
-            q_for_productions(b2);
-        })
-    });
+
 }
 
 use criterion::{criterion_group, criterion_main, Criterion};

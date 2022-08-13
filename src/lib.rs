@@ -1,4 +1,5 @@
 use crate::dict::DICTIONARY;
+use dict::{WORDS, SUBSTRINGS};
 use wasm_bindgen::prelude::*;
 
 pub mod dict;
@@ -10,12 +11,10 @@ extern crate lazy_static;
 
 type VariableName = char;
 use itertools::Itertools;
-use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::Write as FmtWrite;
-
-use std::iter::FromIterator;
-
+use std::collections::BTreeMap;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write as FmtWrite;
+use std::time::SystemTime;
 
 use Constraint::*;
 
@@ -47,19 +46,20 @@ pub enum Constraint {
 #[derive(Clone, Debug)]
 pub struct Pattern {
     items: Vec<Constraint>,
+    ranges: Option<Vec<(usize, usize)>>,
 }
 
 #[derive(Clone)]
 pub struct BindingsManager<'a> {
     bindings: HashSet<VariableBindings<'a>>,
-    variables: HashSet<BTreeSet<VariableName>>,
+    variables: Vec<String>,
 }
 
 impl<'a> Default for BindingsManager<'a> {
     fn default() -> Self {
         BindingsManager {
             bindings: HashSet::new(),
-            variables: HashSet::new(),
+            variables: vec![],
         }
     }
 }
@@ -67,39 +67,66 @@ impl<'a> Default for BindingsManager<'a> {
 impl<'a> BindingsManager<'a> {
     fn add(&mut self, bindings: &VariableBindings<'a>) {
         for subset in bindings.keys().powerset() {
+            if subset.len() == 0 {
+                continue;
+            }
             self.bindings.insert(
                 subset
                     .iter()
                     .map(|&&c| (c, bindings.get(&c).unwrap().clone()))
                     .collect(),
             );
-            self.variables.insert(subset.into_iter().cloned().collect());
+            let subset_vars = subset.into_iter().sorted().join("");
+            if !self.variables.contains(&subset_vars) {
+                self.variables.push(subset_vars);
+            }
         }
     }
-    fn subsets_for_allows(&self, bindings: &VariableBindings, plus_var: char) -> Vec<Vec<char>> {
-        bindings
-            .keys()
-            .powerset()
-            .filter(|subset| {
-                self.variables.contains(&BTreeSet::from_iter(
-                    subset.into_iter().map(|v| **v).chain([plus_var]),
-                ))
+
+    fn subsets_for_allows(&self, bindings: &VariableBindings, plus_var: char) -> Vec<&String> {
+        let ret = self
+            .variables
+            .iter()
+            .filter(|vs| {
+                vs.chars().contains(&plus_var)
+                    && vs
+                        .chars()
+                        .all(|v| plus_var == v || bindings.contains_key(&v))
             })
-            .map(|v| v.clone().into_iter().copied().collect())
-            .collect()
+            .sorted_by_key(|vs| -1 * vs.len() as isize)
+            .fold(vec![], |mut acc: Vec<&String>, vs| {
+                if acc
+                    .iter()
+                    .any(|existing_vs| vs.chars().all(|c| existing_vs.contains(c)))
+                {
+                    acc
+                } else {
+                    acc.push(vs);
+                    acc
+                }
+            });
+
+        // if self.variables.len() > 0{
+        //     println!("BM {} {:?} @{:?} +{} --> {:?}", self.variables.len(), self.variables, bindings, plus_var, ret);
+        // }
+
+        ret
     }
     fn allows(
         &self,
-        subsets: &Vec<Vec<char>>,
+        subsets: &Vec<&String>,
         bindings: &VariableBindings,
         (plus_var, plus_binding): (char, &str),
     ) -> bool {
+        // if subsets.len() > 0 {
+        //     println!("SSL {}", subsets.len());
+        // }
         subsets.iter().all(|subset| {
             self.bindings.contains(
                 &subset
-                    .into_iter()
-                    .chain([&plus_var])
-                    .map(|v| (*v, *(bindings.get(v).unwrap_or(&plus_binding))))
+                    .chars()
+                    .chain([plus_var])
+                    .map(|v| (v, *(bindings.get(&v).unwrap_or(&plus_binding))))
                     .collect(),
             )
         })
@@ -107,6 +134,14 @@ impl<'a> BindingsManager<'a> {
 }
 
 impl Pattern {
+    fn new(items: Vec<Constraint>) -> Pattern {
+        Pattern {
+            items,
+            ranges: None,
+        }
+    }
+    // TODO add Var Spec to this
+    // variable_spec: &HashMap<char, VariableSpec>,
     fn len_range_starting_at(&self, start: usize, bindings: &VariableBindings) -> (usize, usize) {
         let res = self
             .items
@@ -123,7 +158,7 @@ impl Pattern {
                             Conjunction(ps) => {
                                 std::cmp::max(ps.0.len_range().0, ps.1.len_range().0)
                             }
-                            Anagram(v, u, open) => v.len() + u.len(),
+                            Anagram(v, u, _open) => v.len() + u.len(),
                             Literal(_) | LiteralFrom(_) => 1,
                         },
                     acc.1
@@ -252,7 +287,7 @@ impl Pattern {
                 if bound.is_some() && p.starts_with(bound.unwrap()) {
                     let bound_len = bound.unwrap().len();
                     self.evaluate_helper(
-                        &p[bound.unwrap().len()..],
+                        &p[bound_len..],
                         bindings,
                         variable_spec,
                         at + 1,
@@ -274,7 +309,7 @@ impl Pattern {
 
                     let subsets = binding_limits.subsets_for_allows(&bindings, *varname);
 
-                    let range_to_scan = (
+                    let mut range_to_scan = (
                         variable_spec
                             .get(varname)
                             .unwrap()
@@ -286,6 +321,10 @@ impl Pattern {
                             .len_max
                             .unwrap_or(p.len()),
                     );
+
+                    let (suffix_a, suffix_b) = self.len_range_starting_at(at + 1, &bindings);
+                    range_to_scan.0 = range_to_scan.0.max(p.len().saturating_sub(suffix_b));
+                    range_to_scan.1 = range_to_scan.1.min(p.len().saturating_sub(suffix_a));
 
                     (range_to_scan.0..=range_to_scan.1)
                         .filter(|&i| i <= p.len())
@@ -395,6 +434,15 @@ impl Pattern {
             }
         }
     }
+
+    fn cache_len_ranges(&mut self, _varspec: &HashMap<char, VariableSpec>) {
+        let nobindings: BTreeMap<_, _> = BTreeMap::new();
+        self.ranges = Some(
+            (0..self.items.len())
+                .map(|i| self.len_range_starting_at(i, &nobindings))
+                .collect(),
+        );
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -404,11 +452,13 @@ pub struct Query {
 }
 
 impl Query {
-    fn execute<'a>(&self, dict: &Vec<Production<'a>>) -> Vec<Vec<Production<'a>>> {
+    fn execute<'a>(&mut self, dict: &Vec<Production<'a>>) -> Vec<Vec<Production<'a>>> {
         let mut steps: Vec<Vec<Production>> = vec![];
         let mut binding_limits: BindingsManager = BindingsManager::default();
 
-        for part in &self.parts {
+        for part in &mut self.parts {
+            part.cache_len_ranges(&self.variables);
+
             let range = part.len_range();
             steps.push(
                 dict.iter()
@@ -421,6 +471,11 @@ impl Query {
             for b in steps.last().unwrap().iter().map(|r| &r.bindings) {
                 binding_limits.add(&b);
             }
+            println!(
+                "Done step {} ({})",
+                steps.len(),
+                steps.last().unwrap().len()
+            );
         }
 
         self.expand(&steps, BTreeMap::new())
@@ -461,30 +516,36 @@ pub fn q_for_productions(query: &str) -> Vec<Vec<Production>> {
     parser::parse(query).execute(&DICTIONARY)
 }
 
+use parser::VariableMap;
 #[wasm_bindgen]
 pub fn q(query: &str) -> String {
+    let _wc = SUBSTRINGS.len(); // trigger lazy static
+    let mut results = vec![];
+
+    let mut cb = |a: &Vec<&str>, b: &VariableMap<Option<&str>>| {
+        println!(
+            "Bound sol'n {:?} @{:?}",
+            a,
+            b.0.iter().cloned().filter_map(|v| v).collect_vec()
+        );
+        results.push(a.iter().map(|v| v.to_string()).collect_vec());
+        true
+    };
+
+    let mut ctx = parser::parser_exec(&query).build(&mut cb);
+
+    ctx.execute(WORDS.iter());
+
     let mut s = String::new();
 
     write!(&mut s, "[").unwrap();
-    let result = q_for_productions(query);
-    for (i, r) in result.iter().enumerate() {
-        let rep = r.iter().map(|s| s.streak).join(";");
+    for (i, r) in results.iter().enumerate() {
+        let rep = r.iter().join(";");
         write!(&mut s, "{:?}", rep).unwrap();
-        if i < result.len() - 1 {
+        if i < results.len() - 1 {
             writeln!(&mut s, ",").unwrap();
         }
     }
     write!(&mut s, "]").unwrap();
-    return s;
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::*;
-
-    #[test]
-    fn it_works() {
-        let result = q("");
-        println!("Result count: {:?}", result);
-    }
+    s
 }

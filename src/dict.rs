@@ -1,5 +1,19 @@
-use crate::*;
+use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::*;
+    fn word_n<'a>(n: usize, m: usize) -> Vec<&'a str> {
+        DICTIONARY
+            .iter()
+            .filter_map(|w| {
+                if w.streak.len() >= n && w.streak.len() <= m {
+                    Some(w.streak)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+ 
 lazy_static! {
     pub static ref DICTIONARY: Vec<Production<'static>> = UKACD17
         .lines()
@@ -8,7 +22,40 @@ lazy_static! {
             bindings: BTreeMap::new(),
         })
         .collect();
-}
+
+        pub static ref WORDS: Vec<&'static str> = word_n(0, 30);
+
+        pub static ref SUBSTRINGS: FxHashMap<String, FxHashSet<usize>> = {
+            let mut substrings: FxHashMap<String, FxHashSet<usize>> = FxHashMap::default();
+            for (i, w) in WORDS.iter().enumerate() {
+                for (a, b) in (0..=w.len()).tuple_combinations() {
+                    let subv = &w[a..b];
+                    substrings.entry(subv.to_string()).or_default().insert(i);
+                    if a == 0 {
+                        let mut subv_prefix = "".to_string();
+                        subv_prefix += "^";
+                        subv_prefix += subv;
+                        substrings.entry(subv_prefix).or_default().insert(i);
+                    }
+                    if b == w.len() {
+                        let mut subv_prefix = "".to_string();
+                        subv_prefix += subv;
+                        subv_prefix += "$";
+                        substrings.entry(subv_prefix).or_default().insert(i);
+                    }
+                    if a == 0 && b == w.len() {
+                        let mut subv_prefix = "".to_string();
+                        subv_prefix += "^";
+                        subv_prefix += subv;
+                        subv_prefix += "$";
+                        substrings.entry(subv_prefix).or_default().insert(i);
+                    }
+                }
+            }
+            substrings
+        };
+    }
+
 
 pub static UKACD17: &str = r#"a
 aarhus
