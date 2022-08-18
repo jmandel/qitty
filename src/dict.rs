@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::*;
@@ -5,8 +6,8 @@ use crate::*;
         DICTIONARY
             .iter()
             .filter_map(|w| {
-                if w.streak.len() >= n && w.streak.len() <= m {
-                    Some(w.streak)
+                if w.len() >= n && w.len() <= m {
+                    Some(*w)
                 } else {
                     None
                 }
@@ -15,12 +16,9 @@ use crate::*;
     }
  
 lazy_static! {
-    pub static ref DICTIONARY: Vec<Production<'static>> = UKACD17
+    pub static ref DICTIONARY: Vec<&'static str> = UKACD17
         .lines()
-        .map(|a| Production {
-            streak: &a[..],
-            bindings: BTreeMap::new(),
-        })
+        .map(|a| a)
         .collect();
 
         pub static ref WORDS: Vec<&'static str> = word_n(0, 30);

@@ -28,495 +28,527 @@ pub type VariableValue<'a> = &'a str;
 pub type VariableBindings<'a> = BTreeMap<VariableName, VariableValue<'a>>;
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
-pub struct Production<'a> {
-    streak: &'a str,
-    bindings: VariableBindings<'a>,
-}
-
-#[derive(Clone, Debug)]
 pub enum Constraint {
     Literal(char),
     LiteralFrom(Vec<char>),
     Anagram(Vec<char>, Vec<Vec<char>>, bool),
     Variable(char),
-    Disjunction((Pattern, Pattern)),
-    Conjunction((Pattern, Pattern)),
+    Disjunction((Vec<Constraint>, Vec<Constraint>)),
+    Conjunction((Vec<Constraint>, Vec<Constraint>)),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub struct Pattern {
     items: Vec<Constraint>,
     ranges: Option<Vec<(usize, usize)>>,
 }
 
-#[derive(Clone)]
-pub struct BindingsManager<'a> {
-    bindings: HashSet<VariableBindings<'a>>,
-    variables: Vec<String>,
-}
+use std::{
+    env,
+    ops::{Deref, Index, IndexMut},
+    
+};
 
-impl<'a> Default for BindingsManager<'a> {
+use rustc_hash::FxHashSet;
+
+use std::str;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VariableMap<T>(pub [T; 26]);
+
+impl<T> Default for VariableMap<T>
+where
+    T: Default + Copy,
+{
     fn default() -> Self {
-        BindingsManager {
-            bindings: HashSet::new(),
-            variables: vec![],
-        }
+        Self([T::default(); 26])
     }
 }
 
-impl<'a> BindingsManager<'a> {
-    fn add(&mut self, bindings: &VariableBindings<'a>) {
-        for subset in bindings.keys().powerset() {
-            if subset.len() == 0 {
-                continue;
-            }
-            self.bindings.insert(
-                subset
-                    .iter()
-                    .map(|&&c| (c, bindings.get(&c).unwrap().clone()))
-                    .collect(),
-            );
-            let subset_vars = subset.into_iter().sorted().join("");
-            if !self.variables.contains(&subset_vars) {
-                self.variables.push(subset_vars);
-            }
-        }
-    }
+impl<T> Index<char> for VariableMap<T> {
+    type Output = T;
 
-    fn subsets_for_allows(&self, bindings: &VariableBindings, plus_var: char) -> Vec<&String> {
-        let ret = self
-            .variables
-            .iter()
-            .filter(|vs| {
-                vs.chars().contains(&plus_var)
-                    && vs
-                        .chars()
-                        .all(|v| plus_var == v || bindings.contains_key(&v))
-            })
-            .sorted_by_key(|vs| -1 * vs.len() as isize)
-            .fold(vec![], |mut acc: Vec<&String>, vs| {
-                if acc
-                    .iter()
-                    .any(|existing_vs| vs.chars().all(|c| existing_vs.contains(c)))
-                {
-                    acc
-                } else {
-                    acc.push(vs);
-                    acc
-                }
-            });
-
-        // if self.variables.len() > 0{
-        //     println!("BM {} {:?} @{:?} +{} --> {:?}", self.variables.len(), self.variables, bindings, plus_var, ret);
-        // }
-
-        ret
-    }
-    fn allows(
-        &self,
-        subsets: &Vec<&String>,
-        bindings: &VariableBindings,
-        (plus_var, plus_binding): (char, &str),
-    ) -> bool {
-        // if subsets.len() > 0 {
-        //     println!("SSL {}", subsets.len());
-        // }
-        subsets.iter().all(|subset| {
-            self.bindings.contains(
-                &subset
-                    .chars()
-                    .chain([plus_var])
-                    .map(|v| (v, *(bindings.get(&v).unwrap_or(&plus_binding))))
-                    .collect(),
-            )
-        })
+    fn index(&self, index: char) -> &Self::Output {
+        self.0.get(index as usize - 65).unwrap()
     }
 }
 
-impl Pattern {
-    fn new(items: Vec<Constraint>) -> Pattern {
-        Pattern {
-            items,
-            ranges: None,
-        }
-    }
-    // TODO add Var Spec to this
-    // variable_spec: &HashMap<char, VariableSpec>,
-    fn len_range_starting_at(&self, start: usize, bindings: &VariableBindings) -> (usize, usize) {
-        let res = self
-            .items
-            .iter()
-            .skip(start)
-            .fold((0usize, 0usize), |acc, c| {
-                (
-                    acc.0
-                        + match c {
-                            Variable(v) => bindings.get(v).map(|val| val.len()).unwrap_or(0),
-                            Disjunction(ps) => {
-                                std::cmp::min(ps.0.len_range().0, ps.1.len_range().0)
-                            }
-                            Conjunction(ps) => {
-                                std::cmp::max(ps.0.len_range().0, ps.1.len_range().0)
-                            }
-                            Anagram(v, u, _open) => v.len() + u.len(),
-                            Literal(_) | LiteralFrom(_) => 1,
-                        },
-                    acc.1
-                        + match c {
-                            Variable(v) => bindings.get(v).map(|bound| bound.len()).unwrap_or(1000),
-                            Disjunction(ps) => {
-                                std::cmp::max(ps.0.len_range().1, ps.1.len_range().1)
-                            }
-                            Conjunction(ps) => {
-                                std::cmp::min(ps.0.len_range().1, ps.1.len_range().1)
-                            }
-                            Anagram(v, u, open) => v.len() + u.len() + if *open { 1000 } else { 0 },
-                            Literal(_) | LiteralFrom(_) => 1,
-                        },
-                )
-            });
-        // println!("Res {:?}", res);
-        res
-    }
-
-    fn len_range(&self) -> (usize, usize) {
-        self.len_range_starting_at(0, &BTreeMap::new())
-    }
-
-    fn vars(&self) -> Vec<char> {
-        self.items
-            .iter()
-            .flat_map(|t| match t {
-                Variable(c) => vec![*c],
-                Disjunction(sp) | Conjunction(sp) => {
-                    sp.0.vars()
-                        .into_iter()
-                        .chain(sp.1.vars().into_iter())
-                        .collect()
-                }
-                _ => vec![],
-            })
-            .collect()
-    }
-    fn evaluate<'a>(
-        &self,
-        p: &Production<'a>,
-        variable_spec: &HashMap<char, VariableSpec>,
-        binding_limits: &BindingsManager,
-    ) -> Vec<Production<'a>> {
-        // println!("begin with {} with range{:?}", p.streak, len_range);
-        self.evaluate_helper(&p.streak, BTreeMap::new(), variable_spec, 0, binding_limits)
-            .into_iter()
-            .map(|survived_p| Production {
-                streak: p.streak.clone(),
-                bindings: survived_p,
-            })
-            .collect()
-    }
-
-    fn evaluate_helper<'a>(
-        &self,
-        p: &'a str,
-        bindings: VariableBindings<'a>,
-        variable_spec: &HashMap<char, VariableSpec>,
-        at: usize,
-        binding_limits: &BindingsManager,
-    ) -> Vec<VariableBindings<'a>> {
-        if at == self.items.len() {
-            return if p.len() == 0 { vec![bindings] } else { vec![] };
-        }
-        match self.items.get(at).unwrap() {
-            Literal(c) => {
-                if p.starts_with(&[*c]) {
-                    self.evaluate_helper(&p[1..], bindings, variable_spec, at + 1, binding_limits)
-                } else {
-                    vec![]
-                }
-            }
-            LiteralFrom(cs) => {
-                if p.len() > 0 && cs.contains(&p.chars().nth(0).unwrap()) {
-                    self.evaluate_helper(&p[1..], bindings, variable_spec, at + 1, binding_limits)
-                } else {
-                    vec![]
-                }
-            }
-            Anagram(fodder, extras, allow_more) => {
-                let target_len_min = fodder.len() + extras.len();
-                let target_len_max = if *allow_more { p.len() } else { target_len_min };
-
-                (target_len_min..=target_len_max)
-                    .flat_map(|target_len| {
-                        if p.len() < target_len {
-                            return vec![];
-                        }
-
-                        let mut start: Vec<char> = p[0..target_len].chars().collect();
-                        for &f in fodder {
-                            match start.iter().position(|v| *v == f) {
-                                None => return vec![],
-                                Some(pos) => {
-                                    start.remove(pos);
-                                }
-                            }
-                        }
-
-                        let matching_extras =
-                            start.iter().permutations(extras.len()).find(|remainders| {
-                                remainders
-                                    .iter()
-                                    .zip(extras)
-                                    .all(|(r, allowed_chars)| allowed_chars.contains(r))
-                            });
-
-                        if matching_extras.is_none() {
-                            return vec![];
-                        }
-
-                        return self.evaluate_helper(
-                            &p[target_len..],
-                            bindings.clone(),
-                            variable_spec,
-                            at + 1,
-                            binding_limits,
-                        );
-                    })
-                    .collect()
-            }
-            Variable(varname) => {
-                let bound = bindings.get(varname);
-                if bound.is_some() && p.starts_with(bound.unwrap()) {
-                    let bound_len = bound.unwrap().len();
-                    self.evaluate_helper(
-                        &p[bound_len..],
-                        bindings,
-                        variable_spec,
-                        at + 1,
-                        binding_limits,
-                    )
-                } else if bound.is_some() {
-                    vec![]
-                } else {
-                    let min_additional_matches = self.items[at + 1..]
-                        .iter()
-                        .filter(|i| {
-                            if let Variable(otherv) = i {
-                                otherv == varname
-                            } else {
-                                false
-                            }
-                        })
-                        .count();
-
-                    let subsets = binding_limits.subsets_for_allows(&bindings, *varname);
-
-                    let mut range_to_scan = (
-                        variable_spec
-                            .get(varname)
-                            .unwrap()
-                            .len_min
-                            .unwrap_or_default(),
-                        variable_spec
-                            .get(varname)
-                            .unwrap()
-                            .len_max
-                            .unwrap_or(p.len()),
-                    );
-
-                    let (suffix_a, suffix_b) = self.len_range_starting_at(at + 1, &bindings);
-                    range_to_scan.0 = range_to_scan.0.max(p.len().saturating_sub(suffix_b));
-                    range_to_scan.1 = range_to_scan.1.min(p.len().saturating_sub(suffix_a));
-
-                    (range_to_scan.0..=range_to_scan.1)
-                        .filter(|&i| i <= p.len())
-                        .filter(|&i| {
-                            binding_limits.allows(&subsets, &bindings, (*varname, &p[..i]))
-                        })
-                        .flat_map(|i| {
-                            let bind_as: &str = &p[0..i];
-                            let mut num_matches_found = 0;
-                            let mut min_match_spot = i;
-                            while num_matches_found < min_additional_matches {
-                                match p[min_match_spot..].find(bind_as) {
-                                    None => return vec![],
-                                    Some(idx) => {
-                                        min_match_spot = idx + bind_as.len();
-                                        num_matches_found += 1;
-                                    }
-                                }
-                            }
-
-                            let mut shadowed = bindings.clone();
-                            shadowed.insert(*varname, bind_as);
-                            self.evaluate_helper(
-                                &p[i..],
-                                shadowed,
-                                variable_spec,
-                                at + 1,
-                                binding_limits,
-                            )
-                        })
-                        .collect()
-                }
-            }
-            Disjunction((t1, t2)) => {
-                let (a1, b1) = t1.len_range();
-                let (a2, b2) = t2.len_range();
-                let (suffix_a, suffix_b) = self.len_range_starting_at(at + 1, &bindings);
-                let a = a1.min(a2).max(p.len().saturating_sub(suffix_b));
-                let b = b1.max(b2).min(p.len().saturating_sub(suffix_a));
-
-                (a..=b)
-                    .filter(|i| *i <= p.len())
-                    .flat_map(|i| {
-                        let result1 = t1.evaluate_helper(
-                            &p[..i],
-                            bindings.clone(),
-                            variable_spec,
-                            0,
-                            binding_limits,
-                        ); // fix len_range
-                        let result2 = t2.evaluate_helper(
-                            &p[..i],
-                            bindings.clone(),
-                            variable_spec,
-                            0,
-                            binding_limits,
-                        );
-                        result1
-                            .into_iter()
-                            .chain(result2.into_iter())
-                            .unique()
-                            .flat_map(move |discovered_bindings| {
-                                self.evaluate_helper(
-                                    &p[i..],
-                                    discovered_bindings,
-                                    variable_spec,
-                                    at + 1,
-                                    binding_limits,
-                                )
-                            })
-                    })
-                    .collect()
-            }
-            Conjunction((t1, t2)) => {
-                let (a1, b1) = t1.len_range();
-                let (a2, b2) = t2.len_range();
-                let (suffix_a, suffix_b) = self.len_range_starting_at(at + 1, &bindings);
-                let a = a1.max(a2).max(p.len().saturating_sub(suffix_b));
-                let b = b1.min(b2).min(p.len().saturating_sub(suffix_a));
-
-                (a..=b)
-                    .filter(|i| *i <= p.len())
-                    .flat_map(|i| {
-                        t1.evaluate_helper(
-                            &p[..i],
-                            bindings.clone(),
-                            variable_spec,
-                            0,
-                            binding_limits,
-                        )
-                        .into_iter()
-                        .flat_map(|bindings| {
-                            t2.evaluate_helper(&p[..i], bindings, variable_spec, 0, binding_limits)
-                        })
-                        .flat_map(move |discovered_bindings| {
-                            self.evaluate_helper(
-                                &p[i..],
-                                discovered_bindings,
-                                variable_spec,
-                                at + 1,
-                                binding_limits,
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                    })
-                    .collect()
-            }
-        }
-    }
-
-    fn cache_len_ranges(&mut self, _varspec: &HashMap<char, VariableSpec>) {
-        let nobindings: BTreeMap<_, _> = BTreeMap::new();
-        self.ranges = Some(
-            (0..self.items.len())
-                .map(|i| self.len_range_starting_at(i, &nobindings))
-                .collect(),
-        );
+impl<T> IndexMut<char> for VariableMap<T> {
+    fn index_mut(&mut self, index: char) -> &mut Self::Output {
+        self.0.get_mut(index as usize - 65).unwrap()
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Query {
-    parts: Vec<Pattern>,
-    variables: HashMap<VariableName, VariableSpec>,
-}
+fn length_range(
+    p: &Constraint,
+    bindings: &VariableMap<Option<&str>>,
+    spec: &VariableMap<(usize, usize)>,
+) -> (usize, usize) {
+    match p {
+        Literal(_) | LiteralFrom(_) => (1, 1),
+        Anagram(fixed, extras, false) => {
+            let f = fixed.len() + extras.len();
+            (f, f)
+        }
 
-impl Query {
-    fn execute<'a>(&mut self, dict: &Vec<Production<'a>>) -> Vec<Vec<Production<'a>>> {
-        let mut steps: Vec<Vec<Production>> = vec![];
-        let mut binding_limits: BindingsManager = BindingsManager::default();
-
-        for part in &mut self.parts {
-            part.cache_len_ranges(&self.variables);
-
-            let range = part.len_range();
-            steps.push(
-                dict.iter()
-                    .filter(|p| p.streak.len() >= range.0 && p.streak.len() <= range.1)
-                    .flat_map(|production| {
-                        part.evaluate(production, &self.variables, &binding_limits)
-                    })
-                    .collect(),
-            );
-            for b in steps.last().unwrap().iter().map(|r| &r.bindings) {
-                binding_limits.add(&b);
+        &Variable(v) => {
+            if let Some(b) = bindings[v] {
+                (b.len(), b.len())
+            } else {
+                (spec[v].0, spec[v].1)
             }
-            println!(
-                "Done step {} ({})",
-                steps.len(),
-                steps.last().unwrap().len()
-            );
         }
-
-        self.expand(&steps, BTreeMap::new())
-    }
-
-    fn expand<'a>(
-        &self,
-        plist: &[Vec<Production<'a>>],
-        b: VariableBindings<'a>,
-    ) -> Vec<Vec<Production<'a>>> {
-        if plist.len() == 0 {
-            return vec![vec![]];
-        }
-
-        let mut ret: Vec<Vec<Production>> = vec![];
-        for p in &plist[0] {
-            if p.bindings
+        Disjunction((a, b)) => {
+            let arange = a
                 .iter()
-                .all(|(k, v)| b.get(k).and_then(|bk| Some(bk == v)).unwrap_or(true))
-            {
-                let mut next_b = b.clone();
-                next_b.extend(p.bindings.clone());
-                for matching in self.expand(&plist[1..], next_b) {
-                    if matching.len() == plist.len() - 1 {
-                        ret.push(vec![p.clone()].into_iter().chain(matching).collect());
+                .map(|i| length_range(i, bindings, spec))
+                .fold((0, 0), |acc, v| (acc.0 + v.0, acc.1 + v.1));
+            let brange = b
+                .iter()
+                .map(|i| length_range(i, bindings, spec))
+                .fold((0, 0), |acc, v| (acc.0 + v.0, acc.1 + v.1));
+            (arange.0.min(brange.0), arange.1.max(brange.1))
+        }
+        Conjunction((a, b)) => {
+            let arange = a
+                .iter()
+                .map(|i| length_range(i, bindings, spec))
+                .fold((0, 0), |acc, v| (acc.0 + v.0, acc.1 + v.1));
+            let brange = b
+                .iter()
+                .map(|i| length_range(i, bindings, spec))
+                .fold((0, 0), |acc, v| (acc.0 + v.0, acc.1 + v.1));
+            (arange.0.max(brange.0), arange.1.min(brange.1))
+        }
+        Anagram(_, _, true) => (0, 200),
+    }
+}
+
+pub struct ExecutionContextBuilder<'a> {
+    candidate_stack: Vec<&'a str>,
+    bindings: VariableMap<Option<&'a str>>,
+    patterns: Vec<Vec<Constraint>>,
+    spec_var_length: VariableMap<(usize, usize)>,
+    spec_var_inequality: Vec<Vec<char>>,
+    spec_var_sets_length: Vec<(Vec<char>, usize, usize)>,
+    active: bool,
+    count: usize,
+    sum: usize,
+}
+impl<'a> ExecutionContextBuilder<'a> {
+    fn new(
+        patterns: Vec<Vec<Constraint>>,
+        spec_var_length: VariableMap<(usize, usize)>,
+        spec_var_inequality: Vec<Vec<char>>,
+        spec_var_sets_length: Vec<(Vec<char>, usize, usize)>,
+    ) -> Self {
+        ExecutionContextBuilder {
+            candidate_stack: vec![],
+            bindings: VariableMap::default(),
+            patterns,
+            spec_var_length,
+            spec_var_inequality,
+            spec_var_sets_length,
+            active: true,
+            count: 0,
+            sum: 0,
+        }
+    }
+
+    pub fn build<'b>(
+        self,
+        callback: &'b mut dyn FnMut(&Vec<&'a str>, &VariableMap<Option<&'a str>>) -> bool,
+    ) -> ExecutionContext<'a, 'b> {
+        ExecutionContext {
+            active: self.active,
+            bindings: self.bindings,
+            candidate_stack: self.candidate_stack,
+            count: self.count,
+            patterns: self.patterns,
+            spec_var_inequality: self.spec_var_inequality,
+            spec_var_length: self.spec_var_length,
+            spec_var_sets_length: self.spec_var_sets_length,
+            sum: self.sum,
+            subexpr_binding_stack: vec![],
+            callback,
+        }
+    }
+}
+
+pub struct ExecutionContext<'a, 'b> {
+    candidate_stack: Vec<&'a str>,
+    bindings: VariableMap<Option<&'a str>>,
+    patterns: Vec<Vec<Constraint>>,
+    spec_var_length: VariableMap<(usize, usize)>,
+    spec_var_inequality: Vec<Vec<char>>,
+    spec_var_sets_length: Vec<(Vec<char>, usize, usize)>,
+    active: bool,
+    count: usize,
+    sum: usize,
+    subexpr_binding_stack: Vec<Vec<VariableMap<Option<&'a str>>>>,
+    callback: &'b mut dyn FnMut(&Vec<&'a str>, &VariableMap<Option<&'a str>>) -> bool,
+}
+
+impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
+    fn nested_constraints_execute(&mut self, candidate: &'a str, pattern: &[Constraint]) {
+        if candidate.len() == 0
+            && pattern.len() == 0
+            && self.patterns.len() == self.candidate_stack.len()
+            && self.subexpr_binding_stack.len() == 0
+        {
+            self.active = (*self.callback)(&self.candidate_stack, &self.bindings);
+            return;
+        }
+
+        // if self.subexpr_binding_stack.len() > 0 {
+        // println!("Subs {:?} {:?}", candidate, pattern);
+        // }
+        if candidate.len() == 0 && pattern.len() == 0 && self.subexpr_binding_stack.len() > 0 {
+            self.subexpr_binding_stack
+                .last_mut()
+                .unwrap()
+                .push(self.bindings.clone());
+            return;
+        }
+
+        if pattern.len() == 0 {
+            let failed: FxHashSet<usize> = FxHashSet::default();
+            if candidate.len() > 0 {
+                return;
+            }
+
+            let next_pattern = self.patterns.get(self.candidate_stack.len()).unwrap();
+            let next_candidates: Box<dyn Iterator<Item = &&str>>;
+            let mut started = false;
+            let mut in_streak = true;
+            let mut probe = "".to_string();
+            let mut probes: Vec<String> = vec![];
+            for c in next_pattern {
+                let now_in_streak = match c {
+                    Literal(_) | Variable(_) => true,
+                    _ => false,
+                } && {
+                    //TODO move length_range into the executino context?
+                    let range = length_range(&c, &self.bindings, &self.spec_var_length);
+                    range.0 == range.1
+                };
+
+                if !now_in_streak && in_streak && probe != "" {
+                    probes.push(probe.clone());
+                    probe.clear();
+                }
+
+                in_streak = now_in_streak;
+
+                if in_streak {
+                    if !started {
+                        probe.push('^');
+                    }
+
+                    match c {
+                        Literal(c) => {
+                            probe.push(*c);
+                        }
+                        Variable(v) => {
+                            probe += self.bindings[*v].unwrap();
+                        }
+                        _ => panic!("Can't find specific streak string"),
+                    };
+                }
+                started = true;
+            }
+
+            if in_streak && probe != "" {
+                probe.push('$');
+                probes.push(probe);
+            }
+
+            let empty: Option<FxHashSet<usize>> = None;
+            let ss = probes
+                .into_iter()
+                .map(|p| SUBSTRINGS.get(&p).unwrap_or(&failed))
+                .fold(empty, |acc, s| {
+                    Some(match acc {
+                        None => s.clone(),
+                        Some(acc) => acc.intersection(&s).into_iter().copied().collect(),
+                    })
+                })
+                .map(|w| w.into_iter().map(|k| &WORDS[k]));
+
+            if ss.is_some() {
+                next_candidates = Box::new(ss.unwrap().into_iter());
+            } else {
+                next_candidates = Box::new(WORDS.iter());
+            }
+
+            return self.execute(next_candidates);
+        }
+
+        if candidate.len() == 0 {
+            return;
+        }
+
+        let mut constraint_index = 0usize;
+        let mut anchored_left = true;
+        let mut streak_start = 0;
+        let mut streak_length_bound = length_range(
+            pattern.first().unwrap(),
+            &self.bindings,
+            &self.spec_var_length,
+        );
+
+        if streak_length_bound.0 != streak_length_bound.1 {
+            let right_anchor = length_range(
+                &pattern.last().unwrap(),
+                &self.bindings,
+                &self.spec_var_length,
+            );
+            if right_anchor.0 == right_anchor.1 {
+                streak_length_bound = right_anchor;
+                anchored_left = false;
+                constraint_index = pattern.len().saturating_sub(1);
+                streak_start = candidate.len().saturating_sub(streak_length_bound.0);
+            }
+        }
+
+        // let remaining_length_bound = pattern
+        //     .iter()
+        //     .skip(1)
+        //     .map(|p| length_range(p, &self.bindings, &self.spec))
+        //     .fold((0, 0), |acc, (a, b)| (acc.0 + a, acc.1 + b));
+        // streak_length_bound.0 = streak_length_bound.0.max(candidate.len().saturating_sub(remaining_length_bound.1));
+        // streak_length_bound.1 = streak_length_bound.1.min(candidate.len().saturating_sub(remaining_length_bound.0));
+        // self.count+= 1;
+
+        if candidate.len() < streak_length_bound.0 {
+            return;
+        }
+
+        streak_length_bound.1 = streak_length_bound.1.min(candidate.len());
+        'streaks: for streak_len in streak_length_bound.0..=streak_length_bound.1 {
+            // println!("{:?}; {}@{:?}->{:?}", &self.candidate_stack, candidate, pattern, streak_length_bound);
+            if !self.active {
+                return;
+            }
+            let streak_end = (streak_start + streak_len).min(candidate.len());
+            let remainder_len = candidate.len().saturating_sub(streak_len);
+            let remainder_start = if anchored_left { streak_end } else { 0 };
+            let remainder_end = remainder_start + remainder_len;
+
+            match &pattern[constraint_index] {
+                Disjunction((a, b)) => {
+                    let sub_candidate = &candidate[streak_start..streak_end];
+                    let bindings_before_disjunction: VariableMap<Option<&str>> = self.bindings.clone();
+
+                    let a_pattern = &a[..];
+                    self.subexpr_binding_stack.push(vec![]);
+                    self.nested_constraints_execute(sub_candidate, a_pattern);
+                    let result_a = self.subexpr_binding_stack.pop().unwrap();
+
+                    for a_binding in result_a {
+                        self.bindings = a_binding;
+                        self.nested_constraints_execute(
+                            &candidate[remainder_start..remainder_end],
+                            &pattern[if anchored_left {
+                                1..pattern.len()
+                            } else {
+                                0..pattern.len() - 1
+                            }],
+                        );
+                    }
+
+                    self.bindings = bindings_before_disjunction.clone();
+                    let b_pattern = &b[..];
+                    self.subexpr_binding_stack.push(vec![]);
+                    self.nested_constraints_execute(sub_candidate, b_pattern);
+                    let result_b = self.subexpr_binding_stack.pop().unwrap();
+
+                    for b_binding in result_b {
+                        self.bindings = b_binding;
+                        self.nested_constraints_execute(
+                            &candidate[remainder_start..remainder_end],
+                            &pattern[if anchored_left {
+                                1..pattern.len()
+                            } else {
+                                0..pattern.len() - 1
+                            }],
+                        );
+                    }
+
+                    self.bindings = bindings_before_disjunction;
+                }
+
+                Conjunction((a, b)) => {
+                    let sub_candidate = &candidate[streak_start..streak_end];
+                    let bindings_before_conjunction: VariableMap<Option<&str>> =
+                        self.bindings.clone();
+
+                    let a_pattern = &a[..];
+                    self.subexpr_binding_stack.push(vec![]);
+                    self.nested_constraints_execute(sub_candidate, a_pattern);
+                    let result_a = self.subexpr_binding_stack.pop().unwrap();
+
+                    let b_pattern = &b[..];
+                    for a_binding in result_a {
+                        self.subexpr_binding_stack.push(vec![]);
+                        self.bindings = a_binding;
+                        self.nested_constraints_execute(sub_candidate, b_pattern);
+                        let result_b = self.subexpr_binding_stack.pop().unwrap();
+                        for b_binding in result_b {
+                            self.bindings = b_binding;
+                            self.nested_constraints_execute(
+                                &candidate[remainder_start..remainder_end],
+                                &pattern[if anchored_left {
+                                    1..pattern.len()
+                                } else {
+                                    0..pattern.len() - 1
+                                }],
+                            );
+                        }
+                    }
+                    self.bindings = bindings_before_conjunction;
+                }
+                Literal(v) => {
+                    if candidate[streak_start..streak_end].starts_with(*v) {
+                        self.nested_constraints_execute(
+                            &candidate[remainder_start..remainder_end],
+                            &pattern[if anchored_left {
+                                1..pattern.len()
+                            } else {
+                                0..pattern.len() - 1
+                            }],
+                        );
                     }
                 }
+                LiteralFrom(v) => {
+                    if v.contains(&candidate[streak_start..streak_end].chars().next().unwrap()) {
+                        self.nested_constraints_execute(
+                            &candidate[remainder_start..remainder_end],
+                            &pattern[if anchored_left {
+                                1..pattern.len()
+                            } else {
+                                0..pattern.len() - 1
+                            }],
+                        );
+                    }
+                }
+                Variable(v) => {
+                    let reset_var = match self.bindings[*v] {
+                        Some(val) if val == &candidate[streak_start..streak_end] => Some(val),
+                        None => {
+                            self.bindings[*v] = Some(&candidate[streak_start..streak_end]);
+                            None
+                        }
+                        _ => continue 'streaks,
+                    };
+
+                    /* !=AB */
+                    for var_distinct_constraint in &self.spec_var_inequality {
+                        for (&a, &b) in var_distinct_constraint.into_iter().tuple_combinations() {
+                            if self.bindings[a].is_some() && self.bindings[a] == self.bindings[b] {
+                                self.bindings[*v] = reset_var;
+                                continue 'streaks;
+                            }
+                        }
+                    }
+
+                    /* |ABC|=3-5 */
+                    for (vset, a, b) in &self.spec_var_sets_length {
+                        let (bound_count, bound_sum): (usize, usize) = vset
+                            .iter()
+                            .map(|v| self.bindings[*v])
+                            .filter_map(|b| b.map(|v| v.len()))
+                            .fold((0, 0), |acc, v| (acc.0 + 1, acc.1 + v));
+                        if bound_sum > *b
+                            || (bound_count == vset.len() && (bound_sum < *a || bound_sum > *b))
+                        {
+                            self.bindings[*v] = reset_var;
+                            continue 'streaks;
+                        }
+                    }
+                    // let vars_constrained = ['A', 'B', 'C'];
+                    // let vars_constrained_to=4;
+                    // let (bound_count, bound_sum): (usize, usize) =
+                    //     vars_constrained.iter().map(|v|self.bindings[*v])
+                    //         .filter_map(|b| b.map(|v| v.len()))
+                    //         .fold((0, 0), |acc, v| (acc.0 + 1, acc.1 + v));
+                    // if bound_sum > vars_constrained_to || (bound_count == 3 && bound_sum != vars_constrained_to) {
+                    //     self.bindings[*v] = reset_var;
+                    //     continue 'streaks;
+                    // }
+
+                    // println!("Submatchv {:?}; {:?} p={:?},{}, {:?} for candidate {:?} [{}-{}]", &streak_length_bound, &anchored_left, pattern, v, self.bindings[*v], self.candidate_stack,  streak_start, streak_end);
+                    // // println!("Var {:?} {:?} {:?} {:?}", candidate_stack, candidate, v, bindings);
+                    self.nested_constraints_execute(
+                        &candidate[remainder_start..remainder_end],
+                        &pattern[if anchored_left {
+                            1..pattern.len()
+                        } else {
+                            0..pattern.len() - 1
+                        }],
+                    );
+
+                    self.bindings[*v] = reset_var;
+                }
+                Anagram(fixed, extras, _open) => {
+                    let mut streak_chars =
+                        candidate[streak_start..streak_end].chars().collect_vec();
+
+                    for f in fixed {
+                        if let Some(pos) = streak_chars.iter().position(|c| c == f) {
+                            streak_chars.remove(pos);
+                        } else {
+                            continue 'streaks;
+                        }
+                    }
+
+                    let matching_extras = streak_chars
+                        .iter()
+                        .permutations(extras.len())
+                        .find(|remainders| {
+                            remainders
+                                .iter()
+                                .zip(extras)
+                                .all(|(r, allowed_chars)| allowed_chars.contains(r))
+                        })
+                        .is_some();
+
+                    if !matching_extras {
+                        continue 'streaks;
+                    }
+
+                    self.nested_constraints_execute(
+                        &candidate[remainder_start..remainder_end],
+                        &pattern[if anchored_left {
+                            1..pattern.len()
+                        } else {
+                            0..pattern.len() - 1
+                        }],
+                    );
+                }
+                _ => todo!(),
             }
         }
-        ret
+    }
+
+    pub fn execute<T>(&'c mut self, candidates: impl Iterator<Item = T>)
+    where
+        T: Deref<Target = &'a str>,
+    {
+        let pattern_depth = self.candidate_stack.len();
+        for c in candidates {
+            self.candidate_stack.push(&*c);
+            // println!("Recurign into next {}", patterns.len());
+            let this_pattern = self.patterns.get(pattern_depth).unwrap().clone();
+            self.nested_constraints_execute(*c, &this_pattern);
+            self.candidate_stack.pop();
+            if !self.active {
+                return;
+            }
+        }
     }
 }
 
-pub fn q_for_productions(query: &str) -> Vec<Vec<Production>> {
-    let mut s = String::new();
-
-    write!(&mut s, "[").unwrap();
-    parser::parse(query).execute(&DICTIONARY)
-}
-
-use parser::VariableMap;
 #[wasm_bindgen]
 pub fn q(query: &str) -> String {
     let _wc = SUBSTRINGS.len(); // trigger lazy static
@@ -549,3 +581,4 @@ pub fn q(query: &str) -> String {
     write!(&mut s, "]").unwrap();
     s
 }
+

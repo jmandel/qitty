@@ -1,48 +1,8 @@
 extern crate qitty;
 use qitty::*;
 
-fn aa(c: &mut Criterion) {
-    let mut group = c.benchmark_group("sample-size-example");
-    // group.bench_function("tousand", |b| {
-    //     b.iter(|| {
-    //         q_for_productions(&"thou/sand");
-    //     })
-    // });
-
-    // group.sample_size(10);
-    // group.bench_function("aa", |b| {
-    //     b.iter(|| {
-    //         q_for_productions(&"AA");
-    //     })
-    // });
-
-    // let b2 = "AB;BA;|A|=4;|B|=4";
-    // group.bench_function(b2, |b| {
-    //     b.iter(|| {
-    //         q_for_productions(b2);
-    //     })
-    // });
-    group.sample_size(10);
-
-    let b3= "AB;BA;|A|=6-;|B|=5-";
-    group.bench_function(b3, |b| {
-        b.iter(|| {
-            q_for_productions(b3);
-        })
-    });
-
-
-}
-
 use criterion::{criterion_group, criterion_main, Criterion};
 
-criterion_group! {
-    name = benches;
-    config = Criterion::default().with_profiler(FlamegraphProfiler::new(100));
-    targets = aa
-}
-
-criterion_main!(benches);
 
 use std::{fs::File, os::raw::c_int, path::Path};
 
@@ -116,4 +76,8 @@ impl<'a> Profiler for FlamegraphProfiler<'a> {
                 .expect("Error writing flamegraph");
         }
     }
+}
+
+fn main() {
+    
 }
