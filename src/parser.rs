@@ -1,4 +1,4 @@
-use std::{mem::swap, str::FromStr};
+use std::str::FromStr;
 
 #[allow(unused_imports)]
 use crate::*;
@@ -25,24 +25,20 @@ enum QueryTerm {
 fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
     let (input, m) = alt((
         map(
-            tuple((
-                tag("/"),
-                many1(one_of("abcdefghijklmnopqrstuvwxyz.*ABCDEFG")),
-            )),
-            |(_, fodder)| {
+            tuple((tag("/*"), many1(production_pattern_item))),
+            |(_, avec)| {
                 vec![Anagram(
-                    fodder
-                        .clone()
-                        .into_iter()
-                        .filter(|c| !['*', '.'].contains(c))
-                        .collect(),
-                    fodder
-                        .clone()
-                        .into_iter()
-                        .filter(|&c| c == '.')
-                        .map(|_| "abcdefghijklmnopqrstuvwxyz".chars().collect())
-                        .collect(),
-                    fodder.contains(&'*'),
+                    true,
+                    avec.into_iter().flat_map(|v| v.into_iter()).collect(),
+                )]
+            },
+        ),
+        map(
+            tuple((tag("/"), many1(production_pattern_item))),
+            |(_, avec)| {
+                vec![Anagram(
+                    false,
+                    avec.into_iter().flat_map(|v| v.into_iter()).collect(),
                 )]
             },
         ),
@@ -51,7 +47,8 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
             tag("."),
         ),
         value(vec![LiteralFrom("aeiou".chars().collect())], tag("@")),
-        value(vec![Anagram(vec![], vec![], true)], tag("*")),
+        // TODO add back support for >1 `*` across patterns, with a dedicated NonceVariable or `_` indicator or something
+        value(vec![Star], tag("*")),
         value(
             vec![LiteralFrom("bcdfghjklmnpqrstvwxyz".chars().collect())],
             tag("#"),
@@ -61,7 +58,7 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
         map(
             delimited(tag("("), production_patttern_term, tag(")")),
             |o| match o {
-                QueryTerm::QueryTermConstraints(p) => p,
+                QueryTerm::QueryTermConstraints(p) => vec![Subpattern(p)],
                 _ => panic!("Parenthetical terms can only be patterns"),
             },
         ),
@@ -163,7 +160,7 @@ fn parse_query_terms(input: &str) -> Vec<QueryTerm> {
     .unwrap()
     .1
 }
-pub fn parser_exec(q: &str) -> ExecutionContextBuilder<'static> {
+pub fn parser_exec<'ctx>(q: &str) -> ExecutionContext<'static, 'ctx> {
     let query_terms = parse_query_terms(&q);
 
     let patterns = query_terms
@@ -174,7 +171,7 @@ pub fn parser_exec(q: &str) -> ExecutionContextBuilder<'static> {
         })
         .collect_vec();
 
-    let variable_length = query_terms
+    let mut variable_length = query_terms
         .iter()
         .filter_map(|t| match t {
             QueryTerm::QueryTermVariableLength(c, a, b) => Some((c, a, b.unwrap_or(255))),
@@ -182,24 +179,28 @@ pub fn parser_exec(q: &str) -> ExecutionContextBuilder<'static> {
         })
         .collect_vec();
 
-
     fn mention(c: &Constraint) -> Vec<char> {
         match c {
             Variable(c) => vec![*c],
-            Disjunction((a,b)) => [&a, &b].iter().flat_map(|cs|cs.iter().flat_map(|c| mention(c).into_iter())).collect(),
-            _=> vec![]
+            Disjunction((a, b)) | Conjunction((a, b)) => [&a, &b]
+                .iter()
+                .flat_map(|cs| cs.iter().flat_map(|c| mention(c).into_iter()))
+                .collect(),
+            Subpattern(v) | Anagram(_, v) => {
+                v.iter().flat_map(|c| mention(c)).collect()
+            },
+            Star | Literal(_) | LiteralFrom(_) => vec![]
         }
     }
     let variables_mentioned = patterns
         .iter()
-        .flat_map(|i| {
-            i.iter().flat_map(|c| mention(c))
-        })
+        .flat_map(|i| i.iter().flat_map(|c| mention(c)))
         .fold(VariableMap::<(usize, usize)>::default(), |mut vm, v| {
             vm[v] = (1, 255);
             vm
         });
 
+        println!("MEntions {:?}", variables_mentioned);
     let variables_constrained =
         variable_length
             .iter()
@@ -226,7 +227,7 @@ pub fn parser_exec(q: &str) -> ExecutionContextBuilder<'static> {
         })
         .collect_vec();
 
-    ExecutionContextBuilder::new(
+    ExecutionContext::new(
         patterns,
         variables_constrained,
         variable_inquality,
@@ -235,7 +236,18 @@ pub fn parser_exec(q: &str) -> ExecutionContextBuilder<'static> {
 }
 
 pub mod tests {
-    use super::*;
+
+    // rust analyzer seems confused about these being "unused" (or I am ;-))
+    #[allow(unused_imports)]
+    use crate::{
+        dict::{SUBSTRINGS, WORDS},
+        parser::{parse_query_terms, parser_exec},
+        VariableMap,
+    };
+    #[allow(unused_imports)]
+    use itertools::Itertools;
+    #[allow(unused_imports)]
+    use std::{env, time::SystemTime};
 
     #[test]
     fn executort() {
@@ -245,21 +257,22 @@ pub mod tests {
         println!("Total words: {}", word_count);
 
         let mut results = vec![];
-
         let mut cb = |a: &Vec<&str>, b: &VariableMap<Option<&str>>| {
-            println!(
-                "Bound sol'n {:?} @{:?}",
-                a,
-                b.0.iter().cloned().filter_map(|v| v).collect_vec()
-            );
-            results.push(a.iter().map(|v| v.to_string()).collect_vec());
+            let result = a.iter().map(|v| v.to_string()).collect_vec();
+            if Some(&result) != results.last() {
+                println!(
+                    "Bound sol'n {:?} @{:?}",
+                    a,
+                    b.0.iter().cloned().filter_map(|v| v).collect_vec()
+                );
+
+                results.push(result);
+            }
             results.len() < 1000
         };
 
         let t0 = SystemTime::now();
-        let mut ctx = parser_exec(&parg).build(&mut cb);
-
-        ctx.execute(WORDS.iter()/*.filter(|w|w == &&"tripping")*/);
+        parser_exec(&parg).execute(WORDS.iter(), &mut cb);
         println!("Found {} results in {:?}", results.len(), t0.elapsed());
     }
 }

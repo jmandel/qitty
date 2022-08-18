@@ -1,7 +1,4 @@
 extern crate qitty;
-use qitty::*;
-
-use criterion::{criterion_group, criterion_main, Criterion};
 
 
 use std::{fs::File, os::raw::c_int, path::Path};
