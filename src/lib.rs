@@ -17,7 +17,7 @@ use std::{
 
 use Constraint::*;
 
-#[derive(Eq, PartialEq, Clone, Debug, Hash)]
+#[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd)]
 pub enum Constraint {
     Star,
     Literal(char),
@@ -504,12 +504,16 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                         .map(|c| (c, length_range(c, &self.bindings, &self.spec_var_length)))
                         .partition(|(c, flen)| flen.0 == flen.1);
 
-                    'flc: for (flc, (a, _b)) in fixed_len {
+                    let mut last_c = &Star;
+                    let mut last_c_index = 255;
+                    'flc: for (flc, (a, _b)) in fixed_len.into_iter().sorted() {
                         for flc_start in 0..sub_candidate.len() {
+                            if last_c == flc && flc_start <= last_c_index {
+                                continue;
+                            }
                             if flc_start + a > sub_candidate.len() {
                                 continue;
                             }
-
                             let sub_pattern = &[flc.clone()];
                             self.subexpr_binding_stack.push(FxHashSet::default());
                             self.nested_constraints_execute(
@@ -519,6 +523,8 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                             let results = self.subexpr_binding_stack.pop().unwrap();
                             self.bindings = bindings_before_anagram.clone(); // TODO implement a binding stack on the Context
                             if results.len() > 0 {
+                                last_c = flc;
+                                last_c_index = flc_start;
                                 continue 'flc;
                             }
                         }
