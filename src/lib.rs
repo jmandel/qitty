@@ -211,7 +211,14 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                             probe.push(*c);
                         }
                         Variable(v) => {
-                            probe += self.bindings[*v].unwrap();
+                            match self.bindings[*v] {
+                                Some(bound) => {probe += bound;}
+                                None => {
+                                    probe.clear();
+                                    in_streak = false;
+                                }
+                                
+                            }
                         }
                         _ => panic!("Can't find specific streak string"),
                     };

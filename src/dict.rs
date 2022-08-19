@@ -3,7 +3,6 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::*;
 fn word_n<'a>(n: usize, m: usize) -> Vec<&'a str> {
-    
     DICTIONARY
         .iter()
         // .filter(|w| w.starts_with("ea") || w.starts_with("t") )
@@ -1976,7 +1975,7 @@ adams
 adamsale
 adamsapple
 adamsneedle
-adanielcometojudgement!
+adanielcometojudgement
 adansonia
 adapt
 adaptability
@@ -3774,11 +3773,11 @@ ahimsa
 ahind
 ahint
 ahistorical
-ahit,averypalpablehit
+ahitaverypalpablehit
 ahithophel
 ahold
 ahorse
-ahorse!ahorse!mykingdomforahorse!
+ahorseahorsemykingdomforahorse
 ahorseback
 ahoy
 ahoys
@@ -4270,7 +4269,7 @@ alaskan
 alaskanmalamute
 alaskanmalamutes
 alaskans
-alas,pooryorick.iknewhim,horatio
+alaspooryorickiknewhimhoratio
 alastrim
 alate
 alated
@@ -4952,7 +4951,7 @@ allfired
 allfiredly
 allfives
 allfoolsday
-allforone,oneforall
+allforoneoneforall
 allfours
 allgiver
 allgood
@@ -5152,7 +5151,7 @@ allthetime
 alltheway
 alltheworldandhiswife
 alltheworldsastage
-alltheworldsastage,andallthemenandwomenmerelyplayers
+alltheworldsastageandallthemenandwomenmerelyplayers
 allthing
 allthingsbrightandbeautiful
 allthingscometothosewhowait
@@ -6723,7 +6722,7 @@ andes
 andesine
 andesite
 andesitic
-andhow!
+andhow
 andhrapradesh
 andine
 andiron
@@ -6898,7 +6897,7 @@ angelology
 angelophany
 angelou
 angels
-angelsandministersofgracedefendus!
+angelsandministersofgracedefendus
 angelshot
 angelsonhorseback
 angelsshare
@@ -7099,7 +7098,7 @@ aniler
 anilest
 aniline
 anility
-anillfavouredthing,sir,butmineown
+anillfavouredthingsirbutmineown
 anils
 anima
 animadversion
@@ -8470,7 +8469,7 @@ apishness
 apism
 apivorous
 aplacental
-aplagueobothyourhouses!
+aplagueobothyourhouses
 aplanat
 aplanatic
 aplanatism
@@ -10389,7 +10388,7 @@ arshins
 arsine
 arsines
 arsis
-arslonga,vitabrevis
+arslongavitabrevis
 arson
 arsonist
 arsonists
@@ -10740,7 +10739,7 @@ asexuality
 asexually
 asexualreproduction
 asfitasafiddle
-asfliestowantonboys,arewetothegods
+asfliestowantonboysarewetothegods
 asfollows
 asgard
 asgoodas
@@ -18685,7 +18684,7 @@ bidprice
 bids
 bidsin
 bidsup
-bidthemwashtheirfaces,andkeeptheirteethclean
+bidthemwashtheirfacesandkeeptheirteethclean
 bidup
 biedermeier
 bield
@@ -20274,8 +20273,8 @@ blessedvirgin
 blesses
 blessing
 blessings
-blessmysoul!
-blessthee,bottom!blessthee!thouarttranslated
+blessmysoul
+blesstheebottomblesstheethouarttranslated
 blessthishouse
 blessyou
 blest
@@ -20710,7 +20709,7 @@ blowback
 blowbacks
 blowball
 blowballs
-blow,blow,thouwinterwind
+blowblowthouwinterwind
 blowbyblow
 blowdown
 blowdowns
@@ -20775,7 +20774,7 @@ blowup
 blowups
 blowvalve
 blowvalves
-blow,winds,andcrackyourcheeks!
+blowwindsandcrackyourcheeks
 blowy
 blowze
 blowzed
@@ -21756,7 +21755,7 @@ bongoes
 bongos
 bongrace
 bongraces
-bongr,malgr
+bongrmalgr
 bongs
 bonhamcarter
 bonhoeffer
@@ -26454,7 +26453,7 @@ byte
 bytes
 bytheby
 bythebye
-bytheprickingofmythumbs,somethingwickedthiswaycomes
+bytheprickingofmythumbssomethingwickedthiswaycomes
 bythesametoken
 bytheway
 bything
@@ -28802,7 +28801,7 @@ caraculs
 caradoc
 carafe
 carafes
-caramba!
+caramba
 carambola
 carambolas
 carambole
@@ -31681,7 +31680,7 @@ cesspools
 cestdire
 cestlaguerre
 cestlavie
-cestmagnifique,maiscenestpaslaguerre
+cestmagnifiquemaiscenestpaslaguerre
 cestode
 cestodes
 cestoid
@@ -33738,7 +33737,7 @@ chintzes
 chintzier
 chintziest
 chintzy
-chinup!
+chinup
 chinwag
 chinwagged
 chinwagging
@@ -38279,7 +38278,7 @@ coldframe
 coldframes
 coldfront
 coldfusion
-coldhands,warmheart
+coldhandswarmheart
 coldhearted
 coldheartedly
 coldheartedness
@@ -39011,7 +39010,7 @@ comely
 comenow
 comeofage
 comeoff
-comeoffit!
+comeoffit
 comeoffworst
 comeon
 comeons
@@ -39183,7 +39182,7 @@ commeasure
 commeasured
 commeasures
 commeasuring
-commeci,commea
+commecicommea
 commediadellarte
 commeilfaut
 commelina
@@ -40935,7 +40934,7 @@ confusible
 confusing
 confusingly
 confusion
-confusionnowhathmadehismasterpiece!
+confusionnowhathmadehismasterpiece
 confusions
 confutable
 confutation
@@ -46951,8 +46950,8 @@ crybabies
 crybaby
 crybluemurder
 crydown
-crygodforharry!englandandsaintgeorge!
-cry,havoc!andletslipthedogsofwar
+crygodforharryenglandandsaintgeorge
+cryhavocandletslipthedogsofwar
 crying
 cryingoff
 cryingout
@@ -58749,7 +58748,7 @@ doabs
 doabunk
 doall
 doarunner
-doasisay,notasido
+doasisaynotasido
 doasyouwouldbedoneby
 doat
 doated
@@ -58867,7 +58866,7 @@ doctorial
 doctoring
 doctorjekyll
 doctorjohnson
-doctorlivingstone,ipresume?
+doctorlivingstoneipresume?
 doctorly
 doctorno
 doctorow
@@ -59409,7 +59408,7 @@ dominator
 dominators
 dominatrices
 dominatrix
-domine,dirigenos
+dominedirigenos
 dominee
 domineer
 domineered
@@ -60007,8 +60006,8 @@ doubledensity
 doubledigit
 doubledoor
 doubledoors
-double,doubletoilandtrouble
-double,doubletoilandtrouble;fireburnandcauldronbubble
+doubledoubletoilandtrouble
+doubledoubletoilandtrouble;fireburnandcauldronbubble
 doubledup
 doubledutch
 doubledyed
@@ -61149,7 +61148,7 @@ drizzlier
 drizzliest
 drizzling
 drizzly
-drlivingstone,ipresume?
+drlivingstoneipresume?
 droger
 drogers
 drogheda
@@ -61905,8 +61904,8 @@ dumptruck
 dumptrucks
 dumpy
 dumpylevel
-dumspiro,spero
-dumvivimus,vivamus
+dumspirospero
+dumvivimusvivamus
 dun
 dunaway
 dunbar
@@ -62884,13 +62883,13 @@ eastsussex
 eastward
 eastwardly
 eastwards
-east,west,homesbest
+eastwesthomesbest
 eastwood
 easy
 easycare
 easychair
 easychairs
-easycome,easygo
+easycomeeasygo
 easydoesit
 easygame
 easygoing
@@ -62911,7 +62910,7 @@ eatables
 eatage
 eatanswill
 eatcrow
-eat,drink,andbemerry
+eatdrinkandbemerry
 eaten
 eater
 eateries
@@ -64436,7 +64435,7 @@ elementals
 elementarily
 elementariness
 elementary
-elementary,mydearwatson
+elementarymydearwatson
 elementaryparticle
 elementaryparticles
 elementaryschool
@@ -69023,7 +69022,7 @@ esuriencies
 esuriency
 esurient
 esuriently
-e.t.
+et
 eta
 etacism
 etaerio
@@ -70238,7 +70237,7 @@ excellencies
 excellency
 excellent
 excellently
-excellentwretch!
+excellentwretch
 excelling
 excels
 excelsior
@@ -70784,7 +70783,7 @@ exited
 exiting
 exitpoll
 exitpolls
-exit,pursuedbyabear
+exitpursuedbyabear
 exits
 exlibris
 exlibrism
@@ -71914,8 +71913,8 @@ eyelids
 eyeliner
 eyeliners
 eyeofday
-eyeofnewt,andtoeoffrog
-eyeofnewt,andtoeoffrog,woolofbat,andtongueofdog
+eyeofnewtandtoeoffrog
+eyeofnewtandtoeoffrogwoolofbatandtongueofdog
 eyeopener
 eyeopeners
 eyepatch
@@ -72975,7 +72974,7 @@ fares
 farestage
 farestages
 farewell
-farewell,faircruelty
+farewellfaircruelty
 farewells
 farfet
 farfetched
@@ -75136,7 +75135,7 @@ find
 finder
 finders
 finderskeepers
-finderskeepers,losersweepers
+finderskeeperslosersweepers
 findesicle
 findfault
 finding
@@ -75574,7 +75573,7 @@ firstchop
 firstclass
 firstclassmail
 firstclasspost
-firstcome,firstserved
+firstcomefirstserved
 firstcousin
 firstcousinonceremoved
 firstcousins
@@ -76796,7 +76795,7 @@ floatingrib
 floatings
 floatingvoter
 floatingvoters
-floatlikeabutterfly,stinglikeabee
+floatlikeabutterflystinglikeabee
 floatplane
 floats
 floatstone
@@ -78782,7 +78781,7 @@ formulizes
 formulizing
 formwork
 formymoney
-formyownpart,itwasgreektome
+formyownpartitwasgreektome
 formypart
 fornenst
 fornent
@@ -79411,7 +79410,7 @@ frailness
 frails
 frailties
 frailty
-frailty,thynameiswoman!
+frailtythynameiswoman
 fraise
 fraised
 fraises
@@ -79513,7 +79512,7 @@ franklin
 franklinite
 franklins
 frankly
-frankly,mydear,idontgiveadamn!
+franklymydearidontgiveadamn
 frankness
 frankpledge
 franks
@@ -80099,7 +80098,7 @@ friends
 friendship
 friendships
 friendsoftheearth
-friends,romans,countrymen,lendmeyourears
+friendsromanscountrymenlendmeyourears
 frier
 friers
 fries
@@ -82051,7 +82050,7 @@ gamepoint
 gamepreserve
 gamer
 games
-game,setandmatch
+gamesetandmatch
 gameshow
 gameshows
 gamesman
@@ -84045,8 +84044,8 @@ getholdofthewrongendofthestick
 gethsemane
 getin
 getit?
-getknotted!
-getlost!
+getknotted
+getlost
 getoff
 getoffonthewrongfoot
 geton
@@ -84069,7 +84068,7 @@ getsoff
 getson
 getsover
 getsthrough
-getstuffed!
+getstuffed
 gettable
 getter
 gettered
@@ -85900,7 +85899,7 @@ godsends
 godsgift
 godship
 godships
-godsinhisheaven,allsrightwiththeworld
+godsinhisheavenallsrightwiththeworld
 godslot
 godson
 godsons
@@ -86350,7 +86349,7 @@ gooch
 good
 goodafternoon
 goodbye
-goodbye,mrchips
+goodbyemrchips
 goodbyes
 goodbyetoallthat
 goodbyetoberlin
@@ -86402,9 +86401,9 @@ goodnaturedness
 goodness
 goodnessgraciousme
 goodnight
-goodnight,goodnight!partingissuchsweetsorrow
-goodnight,sweetprince
-goodnight,sweetprince,andflightsofangelssingtheetothyrest!
+goodnightgoodnightpartingissuchsweetsorrow
+goodnightsweetprince
+goodnightsweetprinceandflightsofangelssingtheetothyrest
 goodo
 goodoh
 goodonyou
@@ -90969,7 +90968,7 @@ hangdog
 hangdogs
 hangdrawandquarter
 hanged
-hanged,drawnandquartered
+hangeddrawnandquartered
 hanger
 hangeron
 hangers
@@ -92342,7 +92341,7 @@ heardout
 heare
 hearer
 hearers
-hear,hear!
+hearhear
 hearie
 hearing
 hearingaid
@@ -92542,7 +92541,7 @@ heaume
 heaumes
 heave
 heaved
-heaveho!
+heaveho
 heaven
 heavenborn
 heavenbred
@@ -92849,7 +92848,7 @@ heightens
 heightofland
 heights
 heighttopaper
-heil!
+heil
 heils
 heimweh
 heine
@@ -93080,7 +93079,7 @@ hellkite
 hello
 hellodolly
 helloed
-hello,goodevening,andwelcome
+hellogoodeveningandwelcome
 helloing
 hellos
 hellova
@@ -93600,7 +93599,7 @@ hereford
 herefordcattle
 herefordshire
 herefrom
-heregoes!
+heregoes
 herein
 hereinafter
 hereinbefore
@@ -95131,7 +95130,7 @@ hizbollah
 hizbullah
 hizen
 hizz
-h.m.s.pinafore
+hmspinafore
 ho
 hoa
 hoactzin
@@ -95453,7 +95452,7 @@ holdfast
 holdforth
 holdgood
 holdhands
-holdhard!
+holdhard
 holdin
 holding
 holdingcompanies
@@ -95467,7 +95466,7 @@ holdingpattern
 holdingpatterns
 holdings
 holdingtogether
-holdit!
+holdit
 holdoff
 holdon
 holdout
@@ -97231,7 +97230,7 @@ howlings
 howls
 howlsdown
 hows
-howsharperthanaserpentstoothitistohaveathanklesschild!
+howsharperthanaserpentstoothitistohaveathanklesschild
 howso
 howsoever
 howsomever
@@ -99026,7 +99025,7 @@ iamtoooldtolearn
 ian
 ianthine
 iapetus
-iaskyou!
+iaskyou
 iastic
 iatric
 iatrical
@@ -99065,7 +99064,7 @@ ibsenite
 ibsenites
 ibuprofen
 icannottellwhatthedickenshisnameis
-icansuckmelancholyoutofasong,asaweaselsuckseggs
+icansuckmelancholyoutofasongasaweaselsuckseggs
 icarian
 icarus
 ice
@@ -99248,7 +99247,7 @@ ickier
 ickiest
 icknieldway
 icky
-icometoburycaesar,nottopraisehim
+icometoburycaesarnottopraisehim
 icon
 iconic
 iconically
@@ -99581,23 +99580,23 @@ idyllists
 idylls
 idyls
 if
-ifajobsworthdoing,itsworthdoingwell
-ifanythingcangowrong,itwill
-ifatfirstyoudontsucceed,try,try,tryagain
+ifajobsworthdoingitsworthdoingwell
+ifanythingcangowrongitwill
+ifatfirstyoudontsucceedtrytrytryagain
 iff
 iffiness
 iffy
-ififsandanswerepotsandpans,theredbenotradefortinkers
-ifitweredonewhentisdone,thentwerewellitweredonequickly
-ifmusicbethefoodoflove,playon
-ifmusicbethefoodoflove,playon;givemeexcessofit
+ififsandanswerepotsandpanstheredbenotradefortinkers
+ifitweredonewhentisdonethentwerewellitweredonequickly
+ifmusicbethefoodofloveplayon
+ifmusicbethefoodofloveplayon;givemeexcessofit
 ifonly
 ifs
 iftheworstcomestotheworst
-ifyoudontliketheheat,getoutofthekitchen
-ifyouhavetears,preparetoshedthemnow
-ifyouprickus,dowenotbleed?
-ifyouwantathingwelldone,doityourself
+ifyoudontliketheheatgetoutofthekitchen
+ifyouhavetearspreparetoshedthemnow
+ifyouprickusdowenotbleed?
+ifyouwantathingwelldonedoityourself
 igad
 igads
 igap
@@ -99789,7 +99788,7 @@ illfeeling
 illfitting
 illfortune
 illfounded
-illgiveyouwhatfor!
+illgiveyouwhatfor
 illgot
 illgotten
 illheaded
@@ -99841,7 +99840,7 @@ illmakehimanofferhecantrefuse
 illmannered
 illmatched
 illmetbymoonlight
-illmetbymoonlight,proudtitania
+illmetbymoonlightproudtitania
 illnatured
 illnaturedly
 illnaturedness
@@ -99858,7 +99857,7 @@ illogicalness
 illomened
 illputagirdleroundabouttheearthinfortyminutes
 ills
-illsay!
+illsay
 illseen
 illspent
 illstarred
@@ -103172,7 +103171,7 @@ infolding
 infolds
 infomercial
 infopreneurial
-inforapenny,inforapound
+inforapennyinforapound
 inforce
 inforced
 inforces
@@ -105653,7 +105652,7 @@ inthecatbirdseat
 inthecircumstances
 intheclear
 intheclub
-inthecountryoftheblind,theoneeyedmanisking
+inthecountryoftheblindtheoneeyedmanisking
 inthecourseoftime
 inthedark
 inthedock
@@ -106973,7 +106972,7 @@ isapostolic
 isatin
 isatine
 isatis
-isay!
+isay
 ischaemia
 ischaemias
 ischaemic
@@ -107497,9 +107496,9 @@ ittakesallsortstomakeaworld
 ittakestwototango
 ittybitty
 itwasaloverandhislass
-itwasthebestoftimes,itwastheworstoftimes
+itwasthebestoftimesitwastheworstoftimes
 itwastheowlthatshrieked
-itwastheowlthatshrieked,thefatalbellman
+itwastheowlthatshriekedthefatalbellman
 iure
 ivan
 ivanhoe
@@ -107652,7 +107651,7 @@ jackman
 jackmen
 jackmormon
 jackofalltrades
-jackofalltrades,masterofnone
+jackofalltradesmasterofnone
 jackolantern
 jackolanterns
 jackpine
@@ -107926,7 +107925,7 @@ jamsandwiches
 jamsession
 jamsessions
 jamtomorrow
-jamtomorrowandjamyesterday,butneverjamtoday
+jamtomorrowandjamyesterdaybutneverjamtoday
 jan
 janacek
 jandal
@@ -109538,7 +109537,7 @@ jumpsup
 jumpthegun
 jumpthequeue
 jumptoconclusions
-jumptoit!
+jumptoit
 jumpup
 jumpy
 juncaceae
@@ -109802,7 +109801,7 @@ juxtapositions
 jymold
 jynx
 jynxes
-jysuis,jyreste
+jysuisjyreste
 k
 ka
 kaaba
@@ -111540,7 +111539,7 @@ kissinggate
 kissingstrings
 kissinthering
 kissme
-kissme,hardy
+kissmehardy
 kissmekate
 kissmequick
 kissofdeath
@@ -115087,7 +115086,7 @@ leftoff
 leftout
 leftover
 leftovers
-left,rightandcentre
+leftrightandcentre
 lefts
 leftward
 leftwardly
@@ -116117,7 +116116,7 @@ libers
 libertarian
 libertarianism
 libertarians
-libert,galit,fraternit
+libertgalitfraternit
 liberticidal
 liberticide
 liberticides
@@ -116640,7 +116639,7 @@ likefatherlikeson
 likegangbusters
 likegreasedlightning
 likehell
-likehelliwill!
+likehelliwill
 likeitorlumpit
 likelier
 likeliest
@@ -118095,7 +118094,7 @@ locksmiths
 lockstep
 lockstitch
 lockstitches
-lock,stockandbarrel
+lockstockandbarrel
 lockup
 lockups
 loco
@@ -118675,7 +118674,7 @@ lookers
 lookerson
 lookforaneedleinahaystack
 lookforwardto
-lookhere!
+lookhere
 lookin
 looking
 lookingafter
@@ -118686,7 +118685,7 @@ lookingon
 lookings
 lookinto
 lookism
-looklively!
+looklively
 lookon
 lookonthebrightside
 lookout
@@ -118877,7 +118876,7 @@ lordsspiritual
 lordssupper
 lordstable
 lordstemporal
-lord,whatfoolsthesemortalsbe!
+lordwhatfoolsthesemortalsbe
 lordy
 lore
 lorel
@@ -119176,7 +119175,7 @@ lovemakestheworldgoround
 lovemaking
 lovematch
 lovematches
-loveme,lovemydog
+lovemelovemydog
 lovemonger
 lovenest
 lovenests
@@ -119453,7 +119452,7 @@ lucknow
 luckpenny
 lucks
 lucky
-luckyatcards,unluckyinlove
+luckyatcardsunluckyinlove
 luckybag
 luckycharm
 luckycharms
@@ -120494,7 +120493,7 @@ madapple
 madarosis
 madasahatter
 madasamarchhare
-mad,bad,anddangeroustoknow
+madbadanddangeroustoknow
 madbrain
 madbrained
 madbred
@@ -121221,7 +121220,7 @@ makehay
 makehaywhilethesunshines
 makeitsnappy
 makeless
-makelove,notwar
+makelovenotwar
 makemerry
 makenobonesabout
 makeoff
@@ -122169,7 +122168,7 @@ manowar
 manpack
 manpower
 manpowerservicescommission
-manproposes,goddisposes
+manproposesgoddisposes
 manqu
 manqueller
 manray
@@ -122306,7 +122305,7 @@ manus
 manuscript
 manuscripts
 manuses
-manwasbornfree,andeverywhereheisinchains
+manwasbornfreeandeverywhereheisinchains
 manweek
 manweeks
 manx
@@ -122913,11 +122912,11 @@ marrowy
 marrum
 marrums
 marry
-marrycomeup!
+marrycomeup
 marrying
 marryinginto
 marryingoff
-marryinhaste,andrepentatleisure
+marryinhasteandrepentatleisure
 marryinto
 marryoff
 mars
@@ -130624,7 +130623,7 @@ more
 moreau
 morecambe
 moreen
-morehaste,lessspeed
+morehastelessspeed
 moreish
 morel
 morello
@@ -132930,7 +132929,7 @@ myelon
 myelons
 myeye
 myfairlady
-myfoot!
+myfoot
 mygale
 mygales
 mygod
@@ -134544,8 +134543,8 @@ neighs
 neil
 neist
 neither
-neitheraborrower,noralenderbe
-neitherfish,flesh,norfowl
+neitheraborrowernoralenderbe
+neitherfishfleshnorfowl
 neitherfishnorfleshnorgoodredherring
 neitherfishnorfowl
 neitherherenorthere
@@ -136614,7 +136613,7 @@ nonalcoholic
 nonaligned
 nonalignment
 nonallergic
-nonames,nopackdrill
+nonamesnopackdrill
 nonane
 nonanoicacid
 nonappearance
@@ -136928,7 +136927,7 @@ nooses
 noosing
 noosphere
 nootropics
-nopain,nogain
+nopainnogain
 nopal
 nopals
 noparvalue
@@ -137360,7 +137359,7 @@ nothings
 nothingsucceedslikesuccess
 nothingtoit
 nothingtowritehomeabout
-nothingventured,nothinggained
+nothingventurednothinggained
 nothingwillcomeofnothing
 nothofagus
 noti
@@ -137594,7 +137593,7 @@ nownow
 nowornever
 nows
 nowt
-nowthen!
+nowthen
 nowy
 nowyouretalking
 nox
@@ -138178,7 +138177,7 @@ nymphet
 nymphets
 nymphic
 nymphical
-nymph,inthyorisonsbeallmysinsremembered
+nymphinthyorisonsbeallmysinsremembered
 nymphish
 nymphlike
 nymphly
@@ -138535,7 +138534,7 @@ obolus
 obos
 obovate
 obovoid
-obravenewworld,thathassuchpeopleint
+obravenewworldthathassuchpeopleint
 obreption
 obreptitious
 obrien
@@ -139536,7 +139535,7 @@ offthewall
 offward
 offwards
 offwhite
-offwithhishead!
+offwithhishead
 ofhumanbondage
 oflag
 oflags
@@ -139592,8 +139591,8 @@ ogresses
 ogrish
 ogygian
 oh
-ohboy!
-ohdear!
+ohboy
+ohdear
 ohio
 ohm
 ohmage
@@ -139845,7 +139844,7 @@ oldsinscastlongshadows
 oldsoldier
 oldsoldiers
 oldsoldiersneverdie
-oldsoldiersneverdie,theysimplyfadeaway
+oldsoldiersneverdietheysimplyfadeaway
 oldsquaw
 oldstager
 oldstagers
@@ -140062,7 +140061,7 @@ omission
 omissions
 omissive
 omissiveness
-omistressmine!whereareyouroaming?
+omistressminewhereareyouroaming?
 omit
 omits
 omittance
@@ -140174,10 +140173,10 @@ oncall
 once
 onceaccented
 onceandforall
-oncebitten,twiceshy
+oncebittentwiceshy
 onceinabluemoon
 onceinawhile
-oncemoreuntothebreach,dearfriends,oncemore
+oncemoreuntothebreachdearfriendsoncemore
 onceortwice
 onceover
 oncer
@@ -140360,7 +140359,7 @@ onlookers
 onlooking
 only
 onlybegotten
-onlyconnect!
+onlyconnect
 onned
 onning
 onnoaccount
@@ -141734,7 +141733,7 @@ orological
 orologist
 orologists
 orology
-oromeo,romeo!whereforeartthouromeo?
+oromeoromeowhereforeartthouromeo?
 oropesa
 oropesas
 oropharynx
@@ -142194,7 +142193,7 @@ otaries
 otarine
 otary
 otello
-otempora!omores!
+otemporaomores
 othello
 other
 othergates
@@ -142432,8 +142431,8 @@ outcrossings
 outcry
 outcrying
 outdacious
-out,damnedspot!
-out,damnedspot!out,isay!
+outdamnedspot
+outdamnedspotoutisay
 outdance
 outdanced
 outdances
@@ -142775,7 +142774,7 @@ outofprint
 outofseason
 outofshape
 outofsight
-outofsight,outofmind
+outofsightoutofmind
 outofsorts
 outofspirits
 outofstep
@@ -143185,7 +143184,7 @@ outwinging
 outwings
 outwit
 outwith
-outwithit!
+outwithit
 outwits
 outwitted
 outwitting
@@ -143916,7 +143915,7 @@ overoptimism
 overoptimistic
 overpage
 overpaid
-overpaid,overfed,oversexed,andoverhere
+overpaidoverfedoversexedandoverhere
 overpaint
 overpaints
 overpart
@@ -144362,7 +144361,7 @@ overtower
 overtowered
 overtowering
 overtowers
-overtoyou!
+overtoyou
 overtrade
 overtraded
 overtrades
@@ -144544,7 +144543,7 @@ owerlouped
 owerlouping
 owerloups
 owes
-o,whatarogueandpeasantslaveami
+owhatarogueandpeasantslaveami
 owing
 owl
 owlcar
@@ -152794,7 +152793,7 @@ physiciancies
 physiciancy
 physicianer
 physicianers
-physician,healthyself
+physicianhealthyself
 physicians
 physicianship
 physicism
@@ -155241,7 +155240,7 @@ pleasence
 pleaser
 pleasers
 pleases
-please,sir,iwantsomemore
+pleasesiriwantsomemore
 pleaseyourself
 pleasing
 pleasingly
@@ -155836,7 +155835,7 @@ pluriseriate
 plus
 plusage
 plusages
-plusachange,pluscestlammechose
+plusachangepluscestlammechose
 plused
 pluses
 plusfours
@@ -157392,7 +157391,7 @@ popeye
 popeyed
 popfestival
 popfestivals
-popgoestheweasel!
+popgoestheweasel
 popgroup
 popgroups
 popgun
@@ -164689,7 +164688,7 @@ puttering
 putteron
 putterout
 putters
-putthatinyourpipeandsmokeit!
+putthatinyourpipeandsmokeit
 putthebootin
 putthecartbeforethehorse
 putthecatamongthepigeons
@@ -167220,10 +167219,10 @@ rainproof
 rainproofed
 rainproofing
 rainproofs
-rain,rain,goaway,comeagainanotherday
+rainraingoawaycomeagainanotherday
 rains
 rainshadow
-rain,steamandspeed
+rainsteamandspeed
 rainstorm
 rainstorms
 raintight
@@ -170089,8 +170088,8 @@ redshirt
 redshort
 redskin
 redskins
-redskyatnight,shepherdsdelight
-redskyinthemorning,shepherdswarning
+redskyatnightshepherdsdelight
+redskyinthemorningshepherdswarning
 redsnapper
 redsnow
 redspider
@@ -173535,7 +173534,7 @@ restrains
 restraint
 restraintoftrade
 restraints
-rest,rest,perturbdspirit!
+restrestperturbdspirit
 restrict
 restricted
 restrictedly
@@ -175632,7 +175631,7 @@ ringofbrightwater
 ringoff
 ringofthenibelung
 ringout
-ringouttheold,ringinthenew
+ringouttheoldringinthenew
 ringouzel
 ringouzels
 ringporous
@@ -176986,7 +176985,7 @@ rosegeranium
 rosehip
 rosehips
 rosehued
-roseisaroseisaroseisarose,isarose
+roseisaroseisaroseisaroseisarose
 roseland
 roseleaf
 roseless
@@ -177015,7 +177014,7 @@ roseries
 roseroot
 rosery
 roses
-roseshavethorns,andsilverfountainsmud
+roseshavethornsandsilverfountainsmud
 roset
 rosetheatre
 rosetinted
@@ -180224,7 +180223,7 @@ sanskritic
 sanskritist
 sansserif
 sanssouci
-sansteeth,sanseyes,sanstaste,sanseverything
+sansteethsanseyessanstastesanseverything
 sant
 santa
 santabarbara
@@ -184371,7 +184370,7 @@ seemly
 seems
 seen
 seenaplesanddie
-seenoevil,hearnoevil,speaknoevil
+seenoevilhearnoevilspeaknoevil
 seeoff
 seeout
 seeover
@@ -189467,7 +189466,7 @@ signsout
 signsup
 signup
 signwriter
-sijeunessesavait,sivieillessepouvait!
+sijeunessesavaitsivieillessepouvait
 sijo
 sijos
 sika
@@ -189806,7 +189805,7 @@ simonist
 simonists
 simonpeter
 simonpure
-simonumentumrequiris,circumspice
+simonumentumrequiriscircumspice
 simony
 simoom
 simooms
@@ -191489,7 +191488,7 @@ sleeplessly
 sleeplessness
 sleeplikealog
 sleeplikeatop
-sleepnomore!
+sleepnomore
 sleepoff
 sleepout
 sleeprough
@@ -193806,7 +193805,7 @@ softling
 softlings
 softly
 softlysoftly
-softly,softly,catcheemonkey
+softlysoftlycatcheemonkey
 softness
 softnosed
 softoption
@@ -194240,7 +194239,7 @@ solonetses
 solonetz
 solonetzes
 solonetzic
-solong!
+solong
 solongas
 solonian
 solonisation
@@ -198850,7 +198849,7 @@ standins
 standish
 standishes
 standnotupontheorderofyourgoing
-standnotupontheorderofyourgoing,butgoatonce
+standnotupontheorderofyourgoingbutgoatonce
 standoff
 standoffhalf
 standoffish
@@ -199373,7 +199372,7 @@ steads
 steady
 steadygoing
 steadying
-steadyon!
+steadyon
 steadystate
 steadystatetheory
 steak
@@ -200166,7 +200165,7 @@ stickability
 stickaround
 stickatnothing
 sticked
-stickemup!
+stickemup
 sticker
 stickers
 stickful
@@ -200860,7 +200859,7 @@ stonemarten
 stonemason
 stonemasonry
 stonemasons
-stoneme!
+stoneme
 stonemill
 stonen
 stoneoil
@@ -200880,7 +200879,7 @@ stoneshots
 stonesnipe
 stonesthrow
 stonestill
-stonethecrows!
+stonethecrows
 stonewall
 stonewalled
 stonewaller
@@ -203755,7 +203754,7 @@ suckles
 suckling
 sucklings
 sucks
-suckstoyou!
+suckstoyou
 sucralfate
 sucrase
 sucre
@@ -206337,7 +206336,7 @@ swingletree
 swingletrees
 swingling
 swinglings
-swinglow,sweetchariot
+swinglowsweetchariot
 swingmusic
 swingometer
 swingometers
@@ -211666,7 +211665,7 @@ thankfuller
 thankfullest
 thankfully
 thankfulness
-thankheavens!
+thankheavens
 thanking
 thankless
 thanklessly
@@ -211714,7 +211713,7 @@ thatness
 thatsasmaybe
 thatsjusttheticket
 thatsmorelikeit
-thatsonesmallstepforman,onegiantleapformankind
+thatsonesmallstepformanonegiantleapformankind
 thatsthat
 thatsthewaythecookiecrumbles
 thatwastheweekthatwas
@@ -211755,7 +211754,7 @@ theakondofswat
 thealchemist
 thealtogether
 theandric
-theangel,islington
+theangelislington
 theanthropic
 theanthropism
 theanthropist
@@ -211826,7 +211825,7 @@ thebestlaidschemesomiceanmengangaftagley
 thebestthingscomeinsmallparcels
 thebestthingsinlifearefree
 thebetterpartofvalourisdiscretion
-thebettertheday,thebetterthedeed
+thebetterthedaythebetterthedeed
 thebigapple
 thebiggertheyarethehardertheyfall
 thebigsmoke
@@ -211849,7 +211848,7 @@ thebrotherskaramazov
 thebrowningversion
 thebuckstopshere
 thebusiness
-thebutlerdidit!
+thebutlerdidit
 theca
 thecae
 thecal
@@ -211906,7 +211905,7 @@ thefairsex
 thefatisinthefire
 thefemaleofthespeciesismoredeadlythanthemale
 thefightingtmraire
-thefirstthingwedo,letskillallthelawyers
+thefirstthingwedoletskillallthelawyers
 theft
 theftboot
 theftboots
@@ -211927,7 +211926,7 @@ thegnomesofzrich
 thegns
 thegobetween
 thegoldrush
-thegood,thebadandtheugly
+thegoodthebadandtheugly
 thegoosethatlaysthegoldeneggs
 thegrape
 thegrapesofwrath
@@ -211940,7 +211939,7 @@ thegreeneyedmonster
 thegreymareisthebetterhorse
 thegrimreaper
 thehandthatrocksthecradlerulestheworld
-thehelliwill!
+thehelliwill
 thehollowmen
 thehoundofthebaskervilles
 thehuntingofthesnark
@@ -211967,7 +211966,7 @@ thekissofdeath
 thelabourerisworthyofhishire
 theladyandthetramp
 theladydothprotesttoomuch
-theladydothprotesttoomuch,methinks
+theladydothprotesttoomuchmethinks
 theladysnotforburning
 theladyvanishes
 thelarkascending
@@ -212214,7 +212213,7 @@ thequeenscollege
 thequickbrownfoxjumpsoverthelazydog
 thera
 theraceisnottotheswift
-theraceisnottotheswift,northebattletothestrong
+theraceisnottotheswiftnorthebattletothestrong
 theraftofthemedusa
 therailwaychildren
 therainbow
@@ -212243,7 +212242,7 @@ therealmccoy
 therealthing
 thereamong
 thereanent
-therearemorethingsinheavenandearth,horatio,thanaredreamtofinyourphilosophy
+therearemorethingsinheavenandearthhoratiothanaredreamtofinyourphilosophy
 thereat
 thereaway
 therebeside
@@ -212258,7 +212257,7 @@ thereinafter
 thereinbefore
 thereinto
 thereisataverninthetown
-thereisatideintheaffairsofmen,which,takenattheflood,leadsontofortune
+thereisatideintheaffairsofmenwhichtakenatthefloodleadsontofortune
 therellalwaysbeanengland
 thereness
 thereof
@@ -212268,7 +212267,7 @@ thereout
 theres
 theresa
 theresadivinitythatshapesourends
-theresadivinitythatshapesourends,roughhewthemhowwewill
+theresadivinitythatshapesourendsroughhewthemhowwewill
 theresmanyasliptwixtthecupandthelip
 theresnofoollikeanoldfool
 theresnoplacelikehome
@@ -212444,7 +212443,7 @@ theropods
 theroux
 thersites
 thersitical
-theruleis,jamtomorrowandjamyesterdaybutneverjamtoday
+theruleisjamtomorrowandjamyesterdaybutneverjamtoday
 thesauri
 thesaurus
 thesauruses
@@ -214716,8 +214715,8 @@ tobagonian
 tobagonians
 tobe
 tobegoingonwith
-tobe,ornottobe
-tobe,ornottobe:thatisthequestion
+tobeornottobe
+tobeornottobe:thatisthequestion
 tobesure
 tobias
 tobies
@@ -224607,7 +224606,7 @@ unitedprovinces
 unitedreformedchurch
 unitedstates
 unitedstatesofamerica
-unitedwestand,dividedwefall
+unitedwestanddividedwefall
 uniter
 uniters
 unites
@@ -227719,7 +227718,7 @@ upmarket
 upmost
 upo
 upon
-uponmysoul!
+uponmysoul
 uponmyword
 upover
 upped
@@ -229832,7 +229831,7 @@ venires
 venisection
 venison
 venite
-veni,vidi,vici
+venividivici
 venndiagram
 venndiagrams
 vennel
@@ -232769,7 +232768,7 @@ waiterage
 waiterhood
 waitering
 waiters
-waitforit!
+waitforit
 waiting
 waitingforgodot
 waitinglist
@@ -233634,7 +233633,7 @@ wastelands
 wastelbread
 wastelot
 wasteness
-wastenot,wantnot
+wastenotwantnot
 wastepaper
 wastepaperbasket
 wastepaperbaskets
@@ -233700,7 +233699,7 @@ watchguards
 watchhouse
 watching
 watchingbrief
-watchit!
+watchit
 watchkey
 watchkeys
 watchmaker
@@ -234615,7 +234614,7 @@ weewee
 weeweed
 weeweeing
 weewees
-wefew,wehappyfew,webandofbrothers
+wefewwehappyfewwebandofbrothers
 weft
 weftage
 weftages
@@ -234704,7 +234703,7 @@ weismannism
 weissmuller
 weka
 wekas
-weknowwhatweare,butknownotwhatwemaybe
+weknowwhatwearebutknownotwhatwemaybe
 welch
 welched
 welcher
@@ -234827,7 +234826,7 @@ wellie
 wellieboot
 wellieboots
 wellies
-wellinever!
+wellinever
 wellinformed
 welling
 wellingborough
@@ -235104,7 +235103,7 @@ westsidestory
 westsussex
 westvirginia
 westward
-westwardho!
+westwardho
 westwardly
 westwards
 westyorkshire
@@ -235241,7 +235240,7 @@ wharves
 what
 whatabouts
 whatbloodymanisthat?
-whatcantbecured,mustbeendured
+whatcantbecuredmustbeendured
 whatcheer?
 whatdyecallem
 whatdyecallit
@@ -235277,7 +235276,7 @@ whatsis
 whatsit
 whatsits
 whatsitsname
-whatsmineisyours,andwhatisyoursismine
+whatsmineisyoursandwhatisyoursismine
 whatsnew?
 whatso
 whatsoeer
@@ -235423,9 +235422,9 @@ whelped
 whelping
 whelps
 when
-whenadamdelvedandevespan,whowasthenthegentleman?
+whenadamdelvedandevespanwhowasthenthegentleman?
 whenallissaidanddone
-whenamanistiredoflondon,heistiredoflife
+whenamanistiredoflondonheistiredoflife
 whenas
 whence
 whenceforth
@@ -235434,13 +235433,13 @@ whencesoever
 whencever
 wheneer
 whenever
-wheninrome,doastheromansdo
-whenonedoorshuts,anotheropens
+wheninromedoastheromansdo
+whenonedoorshutsanotheropens
 whens
 whensoeer
 whensoever
-whenthecatsaway,themicewillplay
-whenthegoinggetstough,thetoughgetgoing
+whenthecatsawaythemicewillplay
+whenthegoinggetstoughthetoughgetgoing
 where
 whereabout
 whereabouts
@@ -236214,7 +236213,7 @@ whunstanes
 why
 whydah
 whydahbird
-whydontyoucomeupsometime,andseeme?
+whydontyoucomeupsometimeandseeme?
 whyever
 whymper
 whynot
@@ -239597,7 +239596,7 @@ youcantwinthemall
 youcomemostcarefullyuponyourhour
 youcouldhaveknockedmedownwithafeather
 youd
-youdontsay!
+youdontsay
 youk
 youked
 youking
@@ -239647,7 +239646,7 @@ younker
 younkers
 youpaysyourmoneyandyoutakesyourchoice
 your
-yourcountryneedsyou!
+yourcountryneedsyou
 youre
 youreon
 youretellingme
