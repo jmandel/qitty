@@ -5,7 +5,7 @@
 * Returns 11 results in Ok(120.412103ms) in qitty
 
 
-## `trippA|salmonA;Afishing|Aot`
+## `trippA|salmonA;Afishing|Aot`, similarly `Atime|Atime`
 * Total solutions found: 0 in 14.200s
 ```
 Bound sol'n ["salmonfly", "flyfishing"] @["fly"]

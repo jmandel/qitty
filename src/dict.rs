@@ -5,7 +5,7 @@ use crate::*;
 fn word_n<'a>(n: usize, m: usize) -> Vec<&'a str> {
     DICTIONARY
         .iter()
-        // .filter(|w| w.starts_with("ea") || w.starts_with("t") )
+        // .filter(|w| w==&&"test"||w==&&"night" )
         // .filter(|w| w == &&"costars" || w == &&"cos")
         .filter_map(|w| {
             if w.len() >= n && w.len() <= m {
