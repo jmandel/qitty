@@ -127,7 +127,7 @@ pub struct ExecutionContext<'a, 'b> {
     count: usize,
     // sum: usize,
     subexpr_pattern_stack: Vec<(&'a str, Vec<Constraint>)>, // replace with a simple int index
-    config_no_binding_in_disjunction: bool,
+    config_no_binding_in_subexpressions: bool,
     callback: Option<&'b mut dyn FnMut(&Vec<&'a str>, &VariableMap<Option<&'a str>>) -> bool>,
 }
 
@@ -149,7 +149,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
             subexpr_pattern_stack: vec![],
             callback: None,
             count: 0,
-            config_no_binding_in_disjunction: true, // sum: 0,
+            config_no_binding_in_subexpressions: true, // sum: 0,
         }
     }
 
@@ -378,7 +378,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
 
                     self.nested_constraints_execute(sub_candidate, a_pattern);
 
-                    if self.config_no_binding_in_disjunction && self.count > count_pre {
+                    if self.config_no_binding_in_subexpressions && self.count > count_pre {
                         self.subexpr_pattern_stack.pop();
                         return;
                     }
@@ -390,40 +390,35 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     }
                 }
 
-                Conjunction((a, b)) => {
-                    // let sub_candidate = &candidate[streak_start..streak_end];
+                Conjunction((b, a)) => {
+                    let sub_candidate = &candidate[streak_start..streak_end];
 
-                    // let bindings_before_conjunction: VariableMap<Option<&str>> =
-                    //     self.bindings.clone();
+                    let a_pattern = &a[..];
+                    let b_pattern = &b[..];
 
-                    // let a_pattern = &a[..];
-                    // self.subexpr_binding_stack.push(FxHashSet::default());
-                    // self.nested_constraints_execute(sub_candidate, a_pattern);
-                    // let result_a = self.subexpr_binding_stack.pop().unwrap();
+                    let later_constraints_exist = streak_len > 0 || pattern.len() == 1 ;
+                    if later_constraints_exist {
+                        self.subexpr_pattern_stack.push((
+                            &candidate[remainder_start..remainder_end],
+                            pattern[if anchored_left {
+                                1..pattern.len()
+                            } else {
+                                0..pattern.len() - 1
+                            }]
+                            .into_iter()
+                            .cloned()
+                            .collect(),
+                        ));
+                    }
 
-                    // let b_pattern = &b[..];
-                    // self.subexpr_binding_stack.push(FxHashSet::default());
-                    // for a_binding in result_a {
-                    //     // println!("RESA {:?} -- {:?}", b_pattern, a_binding);
-                    //     self.bindings = a_binding;
-                    //     self.nested_constraints_execute(sub_candidate, b_pattern);
-                    // }
+                    self.subexpr_pattern_stack.push((sub_candidate, b_pattern.into_iter().cloned().collect()));
+                    self.nested_constraints_execute(sub_candidate, a_pattern);
+                    self.subexpr_pattern_stack.pop();
 
-                    // let result_b = self.subexpr_binding_stack.pop().unwrap();
-                    // for b_binding in result_b {
-                    // //  println!("RESB  {:?} {}", b_binding,self.subexpr_binding_stack.len() );
-                    //     self.bindings = b_binding;
-                    //     self.nested_constraints_execute(
-                    //         &candidate[remainder_start..remainder_end],
-                    //         &pattern[if anchored_left {
-                    //             1..pattern.len()
-                    //         } else {
-                    //             0..pattern.len() - 1
-                    //         }],
-                    //     );
-                    // }
+                    if later_constraints_exist {
+                        self.subexpr_pattern_stack.pop();
+                    }
 
-                    // self.bindings = bindings_before_conjunction;
                 }
                 Literal(v) => {
                     if candidate[streak_start..streak_end].starts_with(*v) {
