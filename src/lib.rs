@@ -127,6 +127,7 @@ pub struct ExecutionContext<'a, 'b> {
     count: usize,
     // sum: usize,
     subexpr_pattern_stack: Vec<(&'a str, Vec<Constraint>)>, // replace with a simple int index
+    config_no_binding_in_disjunction: bool,
     callback: Option<&'b mut dyn FnMut(&Vec<&'a str>, &VariableMap<Option<&'a str>>) -> bool>,
 }
 
@@ -148,7 +149,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
             subexpr_pattern_stack: vec![],
             callback: None,
             count: 0,
-                            // sum: 0,
+            config_no_binding_in_disjunction: true, // sum: 0,
         }
     }
 
@@ -177,7 +178,8 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
             // println!("Succese D{:?}", self.subexpr_pattern_stack);
             let (next_candidate, next_pattern) = self.subexpr_pattern_stack.pop().unwrap();
             self.nested_constraints_execute(next_candidate, &next_pattern);
-            self.subexpr_pattern_stack.push((next_candidate, next_pattern));
+            self.subexpr_pattern_stack
+                .push((next_candidate, next_pattern));
             return;
         }
 
@@ -324,7 +326,6 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
             // println!("Matching {:?}", &pattern[constraint_index]);
             match &pattern[constraint_index] {
                 Subpattern(v) => {
-
                     self.subexpr_pattern_stack.push((
                         &candidate[remainder_start..remainder_end],
                         pattern[if anchored_left {
@@ -360,24 +361,24 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     let count_pre = self.count;
                     let a_pattern = &a[..];
                     let b_pattern = &b[..];
+
                     if streak_len > 0 || pattern.len() == 1 {
-                    self.subexpr_pattern_stack.push((
-                        &candidate[remainder_start..remainder_end],
-                        pattern[if anchored_left {
-                            1..pattern.len()
-                        } else {
-                            0..pattern.len() - 1
-                        }]
-                        .into_iter()
-                        .cloned()
-                        .collect(),
-                    ));
-                    self.nested_constraints_execute(sub_candidate, a_pattern);
- 
+                        self.subexpr_pattern_stack.push((
+                            &candidate[remainder_start..remainder_end],
+                            pattern[if anchored_left {
+                                1..pattern.len()
+                            } else {
+                                0..pattern.len() - 1
+                            }]
+                            .into_iter()
+                            .cloned()
+                            .collect(),
+                        ));
                     }
 
-                    if self.count > count_pre {
-                        // println!("Skip b a={:?} b={:?}", a_pattern, b_pattern);
+                    self.nested_constraints_execute(sub_candidate, a_pattern);
+
+                    if self.config_no_binding_in_disjunction && self.count > count_pre {
                         self.subexpr_pattern_stack.pop();
                         return;
                     }
