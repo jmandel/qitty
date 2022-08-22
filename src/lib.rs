@@ -10,7 +10,9 @@ extern crate lazy_static;
 
 use itertools::Itertools;
 
+use std::ops::Range;
 use std::{
+    cell::{Cell, RefCell},
     fmt::Write as FmtWrite,
     ops::{Index, IndexMut},
 };
@@ -27,12 +29,6 @@ pub enum Constraint {
     Disjunction((Vec<Constraint>, Vec<Constraint>)),
     Conjunction((Vec<Constraint>, Vec<Constraint>)),
     Subpattern(Vec<Constraint>),
-}
-
-#[derive(Eq, PartialEq, Clone, Debug, Hash)]
-pub struct Pattern {
-    items: Vec<Constraint>,
-    ranges: Option<Vec<(usize, usize)>>,
 }
 
 use rustc_hash::FxHashSet;
@@ -116,6 +112,44 @@ fn length_range(
     }
 }
 
+#[derive(Clone, Copy)]
+enum Branch {
+    Left,
+    Right,
+    Straight,
+}
+
+#[derive(Clone)]
+struct PatternIndex {
+    layer: usize,
+    path: Vec<(usize, Branch)>, // TODO decide on smallvec strategy
+    bound: Range<usize>,
+}
+
+impl PatternIndex {
+    fn index(&self, index: Range<usize>) -> PatternIndex {
+        PatternIndex {
+            layer: self.layer,
+            path: self.path.clone(),
+            bound: self.bound.start + index.start
+                ..(self.bound.start + index.end).min(self.bound.end),
+        }
+    }
+
+    fn step_in(&self, index: usize, branch: Branch, len: usize) -> PatternIndex {
+        PatternIndex {
+            layer: self.layer,
+            path: self
+                .path
+                .iter()
+                .cloned()
+                .chain(std::iter::once((index, branch)))
+                .collect(),
+            bound: 0..len,
+        }
+    }
+}
+
 pub struct ExecutionContext<'a, 'b> {
     candidate_stack: Vec<&'a str>,
     bindings: VariableMap<Option<&'a str>>,
@@ -126,9 +160,29 @@ pub struct ExecutionContext<'a, 'b> {
     active: bool,
     count: usize,
     // sum: usize,
-    subexpr_pattern_stack: Vec<(&'a str, Vec<Constraint>)>, // replace with a simple int index
+    subexpr_pattern_stack: Vec<(&'a str, PatternIndex)>, // replace with a simple int index
     config_no_binding_in_subexpressions: bool,
     callback: Option<&'b mut dyn FnMut(&Vec<&'a str>, &VariableMap<Option<&'a str>>) -> bool>,
+}
+
+impl<'a, 'b> Index<&PatternIndex> for ExecutionContext<'a, 'b> {
+    type Output = [Constraint];
+    fn index(&self, index: &PatternIndex) -> &Self::Output {
+        &index.path.iter().fold(
+            &self.patterns[index.layer][..],
+            |acc, (i, direction)| match acc[*i] {
+                Conjunction((ref l, ref r)) | Disjunction((ref l, ref r)) => {
+                    if let Branch::Right = direction {
+                        &r[..]
+                    } else {
+                        &l[..]
+                    }
+                }
+                Subpattern(ref l) | Anagram(_, ref l) => &l[..],
+                _ => panic!("Invalid path in PatternIndex"),
+            },
+        )[index.bound.clone()]
+    }
 }
 
 impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
@@ -153,7 +207,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
         }
     }
 
-    fn nested_constraints_execute(&'c mut self, candidate: &'a str, pattern: &'c [Constraint]) {
+    fn nested_constraints_execute(&'c mut self, candidate: &'a str, pattern_idx: PatternIndex) {
         // for i in 0..self.subexpr_pattern_stack.len() {
         //     print!("  ");
         // }
@@ -161,8 +215,10 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
         //     "Patt {:?} cand {} in {:?}",
         //     pattern, candidate, self.subexpr_pattern_stack
         // );
+        let pattern_len = pattern_idx.bound.len();
+
         if candidate.len() == 0
-            && (pattern.len() == 0 || (pattern.len() == 1 && pattern[0] == Star))
+            && (pattern_len == 0 || pattern_len == 1 && self[&pattern_idx][0] == Star/*TODO || Streak of Stars is "done" too*/)
             && self.patterns.len() == self.candidate_stack.len()
             && self.subexpr_pattern_stack.len() == 0
         {
@@ -172,18 +228,18 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
         }
 
         if candidate.len() == 0
-            && (pattern.len() == 0 || (pattern.len() == 1 && pattern[0] == Star))
+            && (pattern_len == 0 || pattern_len == 1 && self[&pattern_idx][0] == Star/*TODO || Streak of Stars is "done" too*/)
             && self.subexpr_pattern_stack.len() > 0
         {
             // println!("Succese D{:?}", self.subexpr_pattern_stack);
             let (next_candidate, next_pattern) = self.subexpr_pattern_stack.pop().unwrap();
-            self.nested_constraints_execute(next_candidate, &next_pattern);
+            self.nested_constraints_execute(next_candidate, next_pattern.clone());
             self.subexpr_pattern_stack
                 .push((next_candidate, next_pattern));
             return;
         }
 
-        if pattern.len() == 0 {
+        if pattern_len == 0 {
             if candidate.len() > 0 {
                 return;
             }
@@ -274,21 +330,21 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
         let mut anchored_left = true;
         let mut streak_start = 0;
         let mut streak_length_bound = length_range(
-            pattern.first().unwrap(),
+            &self[&pattern_idx].iter().next().unwrap(),
             &self.bindings,
             &self.spec_var_length,
         );
 
         if streak_length_bound.0 != streak_length_bound.1 {
             let right_anchor = length_range(
-                &pattern.last().unwrap(),
+                &self[&pattern_idx].iter().last().unwrap(),
                 &self.bindings,
                 &self.spec_var_length,
             );
             if right_anchor.0 == right_anchor.1 {
                 streak_length_bound = right_anchor;
                 anchored_left = false;
-                constraint_index = pattern.len().saturating_sub(1);
+                constraint_index = pattern_len.saturating_sub(1);
                 streak_start = candidate.len().saturating_sub(streak_length_bound.0);
             }
         }
@@ -310,7 +366,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
         if candidate.len() < streak_length_bound.0 {
             return;
         }
-        if pattern.len() == 1 && streak_length_bound.1 < candidate.len() {
+        if pattern_len == 1 && streak_length_bound.1 < candidate.len() {
             return;
         }
 
@@ -324,31 +380,33 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
             let remainder_end = remainder_start + remainder_len;
 
             // println!("Matching {:?}", &pattern[constraint_index]);
-            match &pattern[constraint_index] {
+            match &self[&pattern_idx][constraint_index] {
                 Subpattern(v) => {
+                    let vlen = v.len();
+                    let v = ();
                     self.subexpr_pattern_stack.push((
                         &candidate[remainder_start..remainder_end],
-                        pattern[if anchored_left {
-                            1..pattern.len()
+                        pattern_idx.index(if anchored_left {
+                            1..pattern_len
                         } else {
-                            0..pattern.len() - 1
-                        }]
-                        .into_iter()
-                        .cloned()
-                        .collect(),
+                            0..pattern_len - 1
+                        }),
                     ));
                     let sub_candidate = &candidate[streak_start..streak_end];
-                    self.nested_constraints_execute(sub_candidate, &v);
+                    self.nested_constraints_execute(
+                        sub_candidate,
+                        pattern_idx.step_in(constraint_index, Branch::Straight, vlen),
+                    );
                     self.subexpr_pattern_stack.pop();
                 }
                 Star => {
                     self.nested_constraints_execute(
                         &candidate[remainder_start..remainder_end],
-                        &pattern[if anchored_left {
-                            1..pattern.len()
+                        pattern_idx.index(if anchored_left {
+                            1..pattern_len
                         } else {
-                            0..pattern.len() - 1
-                        }],
+                            0..pattern_len - 1
+                        }),
                     );
                 }
 
@@ -359,23 +417,21 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     // }
                     // println!("DISJ {} onm {} P{:?} curpat\n  {:?}\n  {:?}", streak_len, candidate, self.subexpr_pattern_stack, a,b);
                     let count_pre = self.count;
-                    let a_pattern = &a[..];
-                    let b_pattern = &b[..];
+                    let a = a.len();
+                    let b = b.len();
 
-                    if streak_len > 0 || pattern.len() == 1 {
+                    if streak_len > 0 || pattern_len == 1 {
                         self.subexpr_pattern_stack.push((
                             &candidate[remainder_start..remainder_end],
-                            pattern[if anchored_left {
-                                1..pattern.len()
+                            pattern_idx.index(if anchored_left {
+                                1..pattern_len
                             } else {
-                                0..pattern.len() - 1
-                            }]
-                            .into_iter()
-                            .cloned()
-                            .collect(),
+                                0..pattern_len - 1
+                            }),
                         ));
                     }
 
+                    let a_pattern = pattern_idx.step_in(constraint_index, Branch::Right, a);
                     self.nested_constraints_execute(sub_candidate, a_pattern);
 
                     if self.config_no_binding_in_subexpressions && self.count > count_pre {
@@ -383,9 +439,10 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                         return;
                     }
 
+                    let b_pattern = pattern_idx.step_in(constraint_index, Branch::Left, b);
                     self.nested_constraints_execute(sub_candidate, b_pattern);
 
-                    if streak_len > 0 || pattern.len() == 1 {
+                    if streak_len > 0 || pattern_len == 1 {
                         self.subexpr_pattern_stack.pop();
                     }
                 }
@@ -393,42 +450,39 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                 Conjunction((b, a)) => {
                     let sub_candidate = &candidate[streak_start..streak_end];
 
-                    let a_pattern = &a[..];
-                    let b_pattern = &b[..];
+                    let later_constraints_exist = streak_len > 0 || pattern_len == 1;
+                    let a = a.len();
+                    let b = b.len();
 
-                    let later_constraints_exist = streak_len > 0 || pattern.len() == 1 ;
                     if later_constraints_exist {
                         self.subexpr_pattern_stack.push((
                             &candidate[remainder_start..remainder_end],
-                            pattern[if anchored_left {
-                                1..pattern.len()
+                            pattern_idx.index(if anchored_left {
+                                1..pattern_len
                             } else {
-                                0..pattern.len() - 1
-                            }]
-                            .into_iter()
-                            .cloned()
-                            .collect(),
+                                0..pattern_len - 1
+                            }),
                         ));
                     }
-
-                    self.subexpr_pattern_stack.push((sub_candidate, b_pattern.into_iter().cloned().collect()));
+                    let a_pattern = pattern_idx.step_in(constraint_index, Branch::Right, a);
+                    let b_pattern = pattern_idx.step_in(constraint_index, Branch::Left, b);
+                    self.subexpr_pattern_stack.push((sub_candidate, b_pattern));
                     self.nested_constraints_execute(sub_candidate, a_pattern);
                     self.subexpr_pattern_stack.pop();
 
                     if later_constraints_exist {
                         self.subexpr_pattern_stack.pop();
                     }
-
                 }
                 Literal(v) => {
                     if candidate[streak_start..streak_end].starts_with(*v) {
                         self.nested_constraints_execute(
                             &candidate[remainder_start..remainder_end],
-                            &pattern[if anchored_left {
-                                1..pattern.len()
+                            pattern_idx.index(if anchored_left {
+                                1..pattern_len
                             } else {
-                                0..pattern.len() - 1
-                            }],
+                                0..pattern_len - 1
+                            }),
                         );
                     }
                 }
@@ -436,20 +490,21 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     if v.contains(&candidate[streak_start..streak_end].chars().next().unwrap()) {
                         self.nested_constraints_execute(
                             &candidate[remainder_start..remainder_end],
-                            &pattern[if anchored_left {
-                                1..pattern.len()
+                            pattern_idx.index(if anchored_left {
+                                1..pattern_len
                             } else {
-                                0..pattern.len() - 1
-                            }],
+                                0..pattern_len - 1
+                            }),
                         );
                     }
                 }
                 Variable(v) => {
+                    let v = *v;
                     // println!("Check {:?} var {} {:?} {:?} seg {:?}", pattern, v, self.bindings, candidate, &candidate[streak_start..streak_end]);
-                    let reset_var = match self.bindings[*v] {
+                    let reset_var = match self.bindings[v] {
                         Some(val) if val == &candidate[streak_start..streak_end] => Some(val),
                         None => {
-                            self.bindings[*v] = Some(&candidate[streak_start..streak_end]);
+                            self.bindings[v] = Some(&candidate[streak_start..streak_end]);
                             None
                         }
                         _ => continue 'streaks,
@@ -459,7 +514,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     for var_distinct_constraint in &self.spec_var_inequality {
                         for (&a, &b) in var_distinct_constraint.into_iter().tuple_combinations() {
                             if self.bindings[a].is_some() && self.bindings[a] == self.bindings[b] {
-                                self.bindings[*v] = reset_var;
+                                self.bindings[v] = reset_var;
                                 continue 'streaks;
                             }
                         }
@@ -475,33 +530,20 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                         if bound_sum > *b
                             || (bound_count == vset.len() && (bound_sum < *a || bound_sum > *b))
                         {
-                            self.bindings[*v] = reset_var;
+                            self.bindings[v] = reset_var;
                             continue 'streaks;
                         }
                     }
-                    // let vars_constrained = ['A', 'B', 'C'];
-                    // let vars_constrained_to=4;
-                    // let (bound_count, bound_sum): (usize, usize) =
-                    //     vars_constrained.iter().map(|v|self.bindings[*v])
-                    //         .filter_map(|b| b.map(|v| v.len()))
-                    //         .fold((0, 0), |acc, v| (acc.0 + 1, acc.1 + v));
-                    // if bound_sum > vars_constrained_to || (bound_count == 3 && bound_sum != vars_constrained_to) {
-                    //     self.bindings[*v] = reset_var;
-                    //     continue 'streaks;
-                    // }
-
-                    // println!("Submatchv {:?}; {:?} p={:?},{}, {:?} for candidate {:?} [{}-{}]", &streak_length_bound, &anchored_left, pattern, v, self.bindings[*v], self.candidate_stack,  streak_start, streak_end);
-                    // println!("Var {:?} {:?} {:?} {:?}", self.candidate_stack, candidate, v, self.bindings);
                     self.nested_constraints_execute(
                         &candidate[remainder_start..remainder_end],
-                        &pattern[if anchored_left {
-                            1..pattern.len()
+                        pattern_idx.index(if anchored_left {
+                            1..pattern_len
                         } else {
-                            0..pattern.len() - 1
-                        }],
+                            0..pattern_len - 1
+                        }),
                     );
 
-                    self.bindings[*v] = reset_var;
+                    self.bindings[v] = reset_var;
                 }
                 Anagram(open, fodder) => {
                     let bindings_before_anagram: VariableMap<Option<&str>> = self.bindings.clone();
@@ -588,7 +630,14 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
         for c in candidates {
             self.candidate_stack.push(&*c);
             // println!("Try next {:?}. {:?}", self.candidate_stack, self.subexpr_pattern_stack);
-            self.nested_constraints_execute(*c, &self.patterns[pattern_depth].clone());
+            self.nested_constraints_execute(
+                *c,
+                PatternIndex {
+                    layer: pattern_depth,
+                    path: vec![],
+                    bound: 0..self.patterns[pattern_depth].len(),
+                },
+            );
             self.candidate_stack.pop();
             if !self.active {
                 return;
