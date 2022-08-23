@@ -171,7 +171,7 @@ pub fn parser_exec<'ctx>(q: &str) -> ExecutionContext<'static, 'ctx> {
         })
         .collect_vec();
 
-    let mut variable_length = query_terms
+    let variable_length = query_terms
         .iter()
         .filter_map(|t| match t {
             QueryTerm::QueryTermVariableLength(c, a, b) => Some((c, a, b.unwrap_or(255))),

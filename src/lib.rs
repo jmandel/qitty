@@ -85,7 +85,7 @@ fn length_range(
             .map(|i| length_range(i, bindings, spec))
             .fold((0, 0), |acc, v| (acc.0 + v.0, acc.1 + v.1)),
 
-        Disjunction((a, b)) => {
+        Disjunction((a, b)) | Conjunction((a, b)) => {
             let arange = a
                 .iter()
                 .map(|i| length_range(i, bindings, spec))
@@ -94,18 +94,10 @@ fn length_range(
                 .iter()
                 .map(|i| length_range(i, bindings, spec))
                 .fold((0, 0), |acc, v| (acc.0 + v.0, acc.1 + v.1));
-            (arange.0.min(brange.0), arange.1.max(brange.1))
-        }
-        Conjunction((a, b)) => {
-            let arange = a
-                .iter()
-                .map(|i| length_range(i, bindings, spec))
-                .fold((0, 0), |acc, v| (acc.0 + v.0, acc.1 + v.1));
-            let brange = b
-                .iter()
-                .map(|i| length_range(i, bindings, spec))
-                .fold((0, 0), |acc, v| (acc.0 + v.0, acc.1 + v.1));
-            (arange.0.max(brange.0), arange.1.min(brange.1))
+            match p {
+                Disjunction(_) => (arange.0.min(brange.0), arange.1.max(brange.1)),
+                _ => (arange.0.max(brange.0), arange.1.min(brange.1)),
+            }
         }
         Star => (0, 255),
     }
@@ -178,7 +170,7 @@ impl<'a, 'b> Index<&PatternIndex> for ExecutionContext<'a, 'b> {
                     _ => panic!("Invalid branch direction"),
                 },
                 Subpattern(ref l) => &l[..],
-                Anagram(idx, ref v) => match direction {
+                Anagram(_open, ref v) => match direction {
                     Branch::AnagramIndex(idx) => &v[*idx..*idx + 1],
                     _ => panic!("Invalid branch direction"),
                 },
@@ -209,6 +201,86 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
             count: 0,
             config_no_binding_in_subexpressions: true, // sum: 0,
         }
+    }
+
+    fn solve_equation(&mut self) {
+        if self.subexpr_pattern_stack.len() > 0 {
+            return;
+        }
+
+        let failed: FxHashSet<usize> = FxHashSet::default();
+        let next_pattern = self.patterns.get(self.candidate_stack.len()).unwrap();
+        let next_candidates: Box<dyn Iterator<Item = &&str>>;
+        let mut started = false;
+        let mut in_streak = true;
+        let mut probe = "".to_string();
+        let mut probes: Vec<String> = vec![];
+        for c in next_pattern {
+            let now_in_streak = match c {
+                Literal(_) | Variable(_) => true,
+                _ => false,
+            } && {
+                //TODO move length_range into the executino context?
+                let range = length_range(&c, &self.bindings, &self.spec_var_length);
+                range.0 == range.1
+            };
+
+            if !now_in_streak && in_streak && probe != "" {
+                probes.push(probe.clone());
+                probe.clear();
+            }
+
+            in_streak = now_in_streak;
+
+            if in_streak {
+                if !started {
+                    probe.push('^');
+                }
+
+                match c {
+                    Literal(c) => {
+                        probe.push(*c);
+                    }
+                    Variable(v) => match self.bindings[*v] {
+                        Some(bound) => {
+                            probe += bound;
+                        }
+                        None => {
+                            probe.clear();
+                            in_streak = false;
+                        }
+                    },
+                    _ => panic!("Can't find specific streak string"),
+                };
+            }
+            started = true;
+        }
+
+        if in_streak && probe != "" {
+            probe.push('$');
+            probes.push(probe);
+        }
+
+        // println!("Check next patt {:?}", probes);
+        let empty: Option<FxHashSet<usize>> = None;
+        let ss = probes
+            .into_iter()
+            .map(|p| SUBSTRINGS.get(&p).unwrap_or(&failed))
+            .fold(empty, |acc, s| {
+                Some(match acc {
+                    None => s.clone(),
+                    Some(acc) => acc.intersection(&s).into_iter().copied().collect(),
+                })
+            })
+            .map(|w| w.into_iter().map(|k| &WORDS[k]));
+
+        if ss.is_some() {
+            next_candidates = Box::new(ss.unwrap().into_iter());
+        } else {
+            next_candidates = Box::new(WORDS.iter());
+        }
+
+        return self.execute_pattern(next_candidates);
     }
 
     fn nested_constraints_execute(&'c mut self, candidate: &'a str, pattern_idx: PatternIndex) {
@@ -244,86 +316,10 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
         }
 
         if pattern_len == 0 {
-            if candidate.len() > 0 {
-                return;
+            if candidate.len() == 0 {
+                self.solve_equation();
             }
-            if self.subexpr_pattern_stack.len() > 0 {
-                return;
-            }
-
-            let failed: FxHashSet<usize> = FxHashSet::default();
-            let next_pattern = self.patterns.get(self.candidate_stack.len()).unwrap();
-            let next_candidates: Box<dyn Iterator<Item = &&str>>;
-            let mut started = false;
-            let mut in_streak = true;
-            let mut probe = "".to_string();
-            let mut probes: Vec<String> = vec![];
-            for c in next_pattern {
-                let now_in_streak = match c {
-                    Literal(_) | Variable(_) => true,
-                    _ => false,
-                } && {
-                    //TODO move length_range into the executino context?
-                    let range = length_range(&c, &self.bindings, &self.spec_var_length);
-                    range.0 == range.1
-                };
-
-                if !now_in_streak && in_streak && probe != "" {
-                    probes.push(probe.clone());
-                    probe.clear();
-                }
-
-                in_streak = now_in_streak;
-
-                if in_streak {
-                    if !started {
-                        probe.push('^');
-                    }
-
-                    match c {
-                        Literal(c) => {
-                            probe.push(*c);
-                        }
-                        Variable(v) => match self.bindings[*v] {
-                            Some(bound) => {
-                                probe += bound;
-                            }
-                            None => {
-                                probe.clear();
-                                in_streak = false;
-                            }
-                        },
-                        _ => panic!("Can't find specific streak string"),
-                    };
-                }
-                started = true;
-            }
-
-            if in_streak && probe != "" {
-                probe.push('$');
-                probes.push(probe);
-            }
-
-            // println!("Check next patt {:?}", probes);
-            let empty: Option<FxHashSet<usize>> = None;
-            let ss = probes
-                .into_iter()
-                .map(|p| SUBSTRINGS.get(&p).unwrap_or(&failed))
-                .fold(empty, |acc, s| {
-                    Some(match acc {
-                        None => s.clone(),
-                        Some(acc) => acc.intersection(&s).into_iter().copied().collect(),
-                    })
-                })
-                .map(|w| w.into_iter().map(|k| &WORDS[k]));
-
-            if ss.is_some() {
-                next_candidates = Box::new(ss.unwrap().into_iter());
-            } else {
-                next_candidates = Box::new(WORDS.iter());
-            }
-
-            return self.execute_pattern(next_candidates);
+            return;
         }
 
         let mut constraint_index = 0usize;
@@ -357,6 +353,10 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
             return;
         }
 
+        if pattern_len == 1 && streak_length_bound.0 < candidate.len() {
+            streak_length_bound.0 = candidate.len();
+        }
+
         // println!("{:?}, {:?} {:?}", candidate, streak_length_bound, &self[&pattern_idx]);
         'streaks: for streak_len in (streak_length_bound.0..=streak_length_bound.1).rev() {
             if !self.active {
@@ -366,12 +366,10 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
             let remainder_len = candidate.len().saturating_sub(streak_len);
             let remainder_start = if anchored_left { streak_end } else { 0 };
             let remainder_end = remainder_start + remainder_len;
-
             // println!("Matching {:?}", &pattern[constraint_index]);
             match &self[&pattern_idx][constraint_index] {
                 Subpattern(v) => {
                     let vlen = v.len();
-                    let v = ();
 
                     self.subexpr_pattern_stack.push((
                         &candidate[remainder_start..remainder_end],
@@ -411,7 +409,8 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     let a = a.len();
                     let b = b.len();
 
-                    if streak_len > 0 || pattern_len == 1 {
+                    let pattern_continues_beyond = streak_len > 0 || pattern_len > 1;
+                    if pattern_continues_beyond {
                         self.subexpr_pattern_stack.push((
                             &candidate[remainder_start..remainder_end],
                             pattern_idx.index(if anchored_left {
@@ -434,7 +433,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     let b_pattern = pattern_idx.step_in(constraint_index, Branch::Left, b);
                     self.nested_constraints_execute(sub_candidate, b_pattern);
 
-                    if streak_len > 0 || pattern_len == 1 {
+                    if pattern_continues_beyond {
                         self.subexpr_pattern_stack.pop();
                     }
                 }
@@ -543,102 +542,118 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     let open = *open; // shadow bindings to &self so we can recurse in this block
                     let fodder = fodder.clone();
                     let sub_candidate = &candidate[streak_start..streak_end];
-
-                    let (fixed_len, _variable_len): (Vec<_>, Vec<_>) = fodder
-                        .iter()
-                        .cloned()
-                        .enumerate()
-                        .map(|(i, c)| {
-                            let len = length_range(&c, &self.bindings, &self.spec_var_length);
-                            (c, i, len)
-                        })
-                        .partition(|(_c, _i, flen)| flen.0 == flen.1);
-
-                    let mut last_c = &Star;
-                    let mut last_c_index = 255;
-                    'flc: for (flc, i, (a, _b)) in fixed_len.iter().sorted() {
-                        for flc_start in 0..sub_candidate.len() {
-                            if last_c == flc && flc_start <= last_c_index {
-                                continue;
-                            }
-                            if flc_start + a > sub_candidate.len() {
-                                continue 'streaks;
-                            }
-                            let next_pattern_idx =
-                                pattern_idx.step_in(constraint_index, Branch::AnagramIndex(*i), 1);
-
-                            self.subexpr_pattern_stack.push((
-                                sub_candidate,
-                                PatternIndex {
-                                    bound: 0..0,
-                                    layer: 0,
-                                    path: vec![],
-                                },
-                                true,
-                            ));
-                            let pc = self.count;
-                            self.nested_constraints_execute(
-                                &sub_candidate[flc_start..flc_start + a],
-                                next_pattern_idx,
-                            );
-                            self.subexpr_pattern_stack.pop();
-                            if self.count > pc {
-                                last_c = &flc;
-                                last_c_index = flc_start;
-                                continue 'flc;
+                    let mut matching_ranges: Vec<Vec<(usize, usize)>> =
+                        Vec::with_capacity(fodder.len());
+                    let mut forbidden = vec![];
+                    for (i, f) in fodder.into_iter().enumerate() {
+                        let mut f_ranges = vec![];
+                        let (a, b) = length_range(&f, &self.bindings, &self.spec_var_length);
+                        'subc: for c_start in 0..=(sub_candidate.len().saturating_sub(a)) {
+                            for c_len in a..=b.min(sub_candidate.len().saturating_sub(c_start)) {
+                                for v in c_start..c_start + c_len {
+                                    if forbidden.contains(&v) {
+                                        continue 'subc;
+                                    }
+                                }
+                                let next_pattern_idx = pattern_idx.step_in(
+                                    constraint_index,
+                                    Branch::AnagramIndex(i),
+                                    1,
+                                );
+                                self.subexpr_pattern_stack.push((
+                                    sub_candidate,
+                                    PatternIndex {
+                                        bound: 0..0,
+                                        layer: 0,
+                                        path: vec![],
+                                    },
+                                    true,
+                                ));
+                                let pc = self.count;
+                                self.nested_constraints_execute(
+                                    &sub_candidate[c_start..c_start + c_len],
+                                    next_pattern_idx,
+                                );
+                                self.subexpr_pattern_stack.pop();
+                                if self.count > pc {
+                                    f_ranges.push((c_start, c_start + c_len))
+                                }
                             }
                         }
-                        continue 'streaks;
+                        f_ranges = f_ranges
+                            .into_iter()
+                            .filter(|(fa, fb)| {
+                                matching_ranges
+                                    .iter()
+                                    .all(|rs| !rs.iter().all(|(a, b)| fb > a && fa < b))
+                            })
+                            .collect();
+
+                        if f_ranges.len() == 0 {
+                            continue 'streaks;
+                        }
+                        if f_ranges.len() == 1 {
+                            for f in f_ranges[0].0..f_ranges[0].1 {
+                                forbidden.push(f);
+                            }
+                        }
+
+                        matching_ranges.push(f_ranges);
                     }
 
-                    // println!("************PIECES EXIST {}", sub_candidate);
-                        // continue 'streaks;
+                    // if variable_len.len() == 0 {
+                    //     self.nested_constraints_execute(
+                    //         &candidate[remainder_start..remainder_end],
+                    //         pattern_idx.index(if anchored_left {
+                    //             1..pattern_len
+                    //         } else {
+                    //             0..pattern_len - 1
+                    //         }),
+                    //     );
+                    //     continue 'streaks;
+                    // }
 
-                    let later_constraints_exist = streak_len > 0 || pattern_len == 1;
-                    if later_constraints_exist {
-                        self.subexpr_pattern_stack.push((
+                    if !open {
+                        for i in 0..sub_candidate.len() {
+                            if !matching_ranges
+                                .iter()
+                                .any(|rs| rs.iter().any(|(a, b)| i >= *a && i < *b))
+                            {
+                                continue 'streaks;
+                            }
+                        }
+                    }
+                    // println!("Trying mcr {}", sub_candidate);
+
+                    'mcr: for cr in matching_ranges.iter().multi_cartesian_product() {
+                        for v in 0..cr.len() {
+                            let (av, bv) = cr[v];
+                            for y in (v + 1)..cr.len() {
+                                let (ay, by) = cr[y];
+                                if by > av && ay < bv {
+                                    continue 'mcr;
+                                }
+                            }
+                        }
+
+                        if !open {
+                            for i in 0..sub_candidate.len() {
+                                if !cr.iter().any(|(a, b)| i >= *a && i < *b) {
+                                    // println!("Contains unmatched");
+                                    continue 'mcr;
+                                }
+                            }
+                        }
+                        self.nested_constraints_execute(
                             &candidate[remainder_start..remainder_end],
                             pattern_idx.index(if anchored_left {
                                 1..pattern_len
                             } else {
                                 0..pattern_len - 1
                             }),
-                            false,
-                        ));
-                    }
-
-                    for fodder_order in fodder.iter().permutations(fodder.len()) {
-                        let mut sub_pattern = fodder_order
-                            .into_iter()
-                            .cloned()
-                            .flat_map(|c| {
-                                if open {
-                                    vec![Star, c].into_iter()
-                                } else {
-                                    vec![c].into_iter()
-                                }
-                            })
-                            .collect_vec();
-                        if open {
-                            sub_pattern.push(Star);
-                        }
-
-                        let sub_pattern_len = sub_pattern.len();
-                        self.patterns.push(sub_pattern);
-                        self.nested_constraints_execute(
-                            sub_candidate,
-                            PatternIndex {
-                                bound: 0..sub_pattern_len,
-                                layer: self.patterns.len() - 1,
-                                path: vec![],
-                            },
                         );
-
-                        self.patterns.pop();
-                    }
-
-                    if later_constraints_exist {
-                        self.subexpr_pattern_stack.pop();
+                        // println!("************PIECES EXIST {} {:?}", candidate, cr);
+                        break 'mcr;
                     }
                 }
             }
