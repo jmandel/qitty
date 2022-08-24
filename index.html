@@ -1,74 +1,103 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <title>qitty</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<head>
+  <meta charset="utf-8">
+  <title>qitty</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 
-    <style>
-      html, body {
-        height: 100%;
-        width: 100%;
-        margin: 0px;
+  <style>
+    html,
+    body {
+      height: 100%;
+      width: 100%;
+      margin: 0px;
 
-      }
-      body {
-        padding: 1em;
-        box-sizing: border-box;
-        display: grid;
-        grid-template-rows: 2em auto;
-        grid-template-columns: auto 6em;
-        gap: 1em;;
-      }
-      input, button {
-        grid-row: 1;
-        font-family: 'Courier New', Courier, monospace;
-        font-weight: bold;
-        font-size: 1em;
-      }
-      input {
-        background-color: lightgoldenrodyellow;
-        padding-left: 2em;
-      }
-      textarea {
-        grid-row: 2;
-        grid-column: 1 / span 2;
-      }
-    </style>
-  </head>
-  <body>
-    <script type="module">
-      import init, {q} from "./pkg/qitty.js";
-      init()
-        .then(() => {
-          window.qopy = (probe) => {
-            const t0 = new Date().getTime();
-            const result = JSON.parse(q(probe)).map(v => v.split(";"));
-            const elapsedMilliseconds = new Date().getTime() - t0;
-            return {count: result.length, elapsedMilliseconds, result}
-          }
-          q("start"); // force evaluation of lazy_static DICTIONARY
-          runQuery();
-          console.log("Ready to qopy");
-        });
-    </script>
-  </body>
-  <input id="q" type="text" value="....sand"/>
-  <button onclick="runQuery()" >Run</button>
-  <textarea id="result" READONLY></textarea>
-  <script>
-    const q = window.document.getElementById("q");
-    q.select();
-    q.addEventListener("keyup", function(event) {
-      if (event.key === "Enter") {
-        runQuery()
-      }
-    });
-
-    function runQuery(){
-      const r = qopy(q.value.replaceAll(" ", ""));
-      window.document.getElementById("result").innerHTML = JSON.stringify(r, null, 2);
     }
-  </script>
+
+    body {
+      padding: 1em;
+      box-sizing: border-box;
+      display: grid;
+      grid-template-rows: 2em auto;
+      grid-template-columns: auto 6em;
+      gap: 1em;
+      ;
+    }
+
+    input,
+    button {
+      grid-row: 1;
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: bold;
+      font-size: 1em;
+    }
+
+    input {
+      background-color: lightgoldenrodyellow;
+      padding-left: 2em;
+    }
+
+    textarea {
+      grid-row: 2;
+      grid-column: 1 / span 2;
+    }
+  </style>
+</head>
+
+<body>
+</body>
+<input id="q" type="text"  />
+<button onclick="runQuery()">Run</button>
+<textarea id="result" READONLY>Loading qitty...</textarea>
+<script>
+  const q = window.document.getElementById("q");
+  q.addEventListener("keyup", function (event) {
+    if (event.key === "Enter") {
+      runQuery()
+    }
+  });
+  let startingPattern = window.location.hash.slice(1) || "....sand";
+  q.setAttribute("value", startingPattern);
+  q.select();
+
+  const worker = new Worker("./worker.js", { type: "module" });
+  worker.addEventListener("message", e => {
+    if (e.data === "ready") {
+      runQuery();
+    } else if (e.data.result) {
+      onResult(e.data.result)
+    } else if (e.data.complete) {
+      onComplete(e.data.complete)
+    }
+  });
+
+
+  function runQuery() {
+    window.location.hash = q.value;
+    window.document.getElementById("result").innerHTML = `Querying: ${q.value}\n---\n`;
+    worker.postMessage({ q: q.value.replaceAll(" ", "") });
+  }
+
+  function onComplete(c) {
+    console.log("Complete", c);
+    window.document.getElementById("result").innerHTML += JSON.stringify(c);
+  }
+
+  function onResult(r) {
+    console.log("Result", r);
+    let bindings = [];
+    for (let b = 'A'; b <= 'Z'; b++) {
+      if (r.bindings[b]) {
+        bindings.push(`${b}=${r.bindings[b]}`)
+      }
+    }
+    window.document.getElementById("result").innerHTML +=
+      r.words.join("; ") +
+      (r.bindings ? `&nbsp;&nbsp;&nbsp;(${bindings.join(", ")})` : "") +
+      "\n";
+  }
+</script>
+
 </html>

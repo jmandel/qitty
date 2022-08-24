@@ -10,6 +10,7 @@ edition = "2021"
 itertools = "0.10.3"
 lazy_static = "1.4.0"
 wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+js-sys = "0.3"
 nom = "7.1.1"
 radix_trie = "0.2"
 prefix-tree = "0.5.0"

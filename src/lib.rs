@@ -10,9 +10,9 @@ extern crate lazy_static;
 
 use itertools::Itertools;
 
+use std::collections::HashMap;
 use std::ops::Range;
 use std::{
-    fmt::Write as FmtWrite,
     ops::{Index, IndexMut},
 };
 
@@ -700,33 +700,40 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
     }
 }
 
-#[wasm_bindgen]
-pub fn q(query: &str) -> String {
-    let _wc = SUBSTRINGS.len(); // trigger lazy static
-    let mut results = vec![];
+use serde::{Serialize, Deserialize};
 
+#[wasm_bindgen]
+#[derive(Eq, PartialEq, Clone, Debug, Serialize)]
+struct JsResult {
+    words: Vec<String>,
+    bindings: HashMap<char, String>
+}
+
+
+#[wasm_bindgen]
+pub fn q(query: &str, f: &js_sys::Function) -> usize {
+    let _wc = SUBSTRINGS.len(); // trigger lazy static
+    let mut count = 0;
+    let mut last_val = JsResult { words: vec![], bindings: HashMap::default() };
     let mut cb = |a: &Vec<&str>, b: &VariableMap<Option<&str>>| {
-        println!(
-            "Bound sol'n {:?} @{:?}",
-            a,
-            b.0.iter().cloned().filter_map(|v| v).collect_vec()
-        );
-        results.push(a.iter().map(|v| v.to_string()).collect_vec());
+        let words = a.iter().map(|v| v.to_string()).collect_vec();
+        let bindings = ('A'..'Z').filter_map(|v| b[v].map(|binding| (v, binding.to_string()))).collect();
+        let result = JsResult {
+            words,
+            bindings
+        };
+
+        if result != last_val {
+            last_val = result.clone();
+            count += 1;
+            let this = JsValue::null();
+            let x = JsValue::from_serde(&result).unwrap();
+            f.call1(&this, &x);
+        }
         true
     };
 
     parser::parser_exec(&query).execute(WORDS.iter(), &mut cb);
 
-    let mut s = String::new();
-
-    write!(&mut s, "[").unwrap();
-    for (i, r) in results.iter().enumerate() {
-        let rep = r.iter().join(";");
-        write!(&mut s, "{:?}", rep).unwrap();
-        if i < results.len() - 1 {
-            writeln!(&mut s, ",").unwrap();
-        }
-    }
-    write!(&mut s, "]").unwrap();
-    s
+    count
 }
