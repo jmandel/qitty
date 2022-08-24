@@ -88,11 +88,11 @@
   function onResult(r) {
     console.log("Result", r);
     let bindings = [];
-    for (let b = 'A'; b <= 'Z'; b++) {
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").forEach((b) => {
       if (r.bindings[b]) {
-        bindings.push(`${b}=${r.bindings[b]}`)
+        bindings.push(`${b}=${r.bindings[b]}`);
       }
-    }
+    })
     window.document.getElementById("result").innerHTML +=
       r.words.join("; ") +
       (r.bindings ? `&nbsp;&nbsp;&nbsp;(${bindings.join(", ")})` : "") +
