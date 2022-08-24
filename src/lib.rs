@@ -152,8 +152,7 @@ pub struct ExecutionContext<'a, 'b> {
     spec_var_sets_length: Vec<(Vec<char>, usize, usize)>,
     active: bool,
     count: usize,
-    // sum: usize,
-    subexpr_pattern_stack: Vec<(&'a str, PatternIndex, bool)>, // replace with a simple int index
+    subexpr_pattern_stack: Vec<(&'a str, PatternIndex, Option<usize>)>, // replace with a simple int index
     config_no_binding_in_subexpressions: bool,
     callback: Option<&'b mut dyn FnMut(&Vec<&'a str>, &VariableMap<Option<&'a str>>) -> bool>,
 }
@@ -304,11 +303,11 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
 
         if candidate.len() == 0 && pattern_len == 0 && self.subexpr_pattern_stack.len() > 0 {
             // println!("Succese D{:?}", self.subexpr_pattern_stack);
-            let (next_candidate, next_pattern, capped) = self.subexpr_pattern_stack.pop().unwrap();
-            if !capped {
+            let (next_candidate, next_pattern, mut capped) = self.subexpr_pattern_stack.pop().unwrap();
+            if capped.is_none() {
                 self.nested_constraints_execute(next_candidate, next_pattern.clone());
             } else {
-                self.count += 1; //TODO use a self.cap_hit
+                capped = capped.map(|c| c + 1);
             }
             self.subexpr_pattern_stack
                 .push((next_candidate, next_pattern, capped));
@@ -378,7 +377,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                         } else {
                             0..pattern_len - 1
                         }),
-                        false,
+                        None,
                     ));
                     let sub_candidate = &candidate[streak_start..streak_end];
                     // println!("{}  {:?} Get ready to subp {} recurse {:?}", candidate, self.patterns, constraint_index, pattern_idx);
@@ -418,7 +417,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                             } else {
                                 0..pattern_len - 1
                             }),
-                            false,
+                            None,
                         ));
                     }
 
@@ -453,13 +452,13 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                             } else {
                                 0..pattern_len - 1
                             }),
-                            false,
+                            None,
                         ));
                     }
                     let a_pattern = pattern_idx.step_in(constraint_index, Branch::Right, a);
                     let b_pattern = pattern_idx.step_in(constraint_index, Branch::Left, b);
                     self.subexpr_pattern_stack
-                        .push((sub_candidate, b_pattern, false));
+                        .push((sub_candidate, b_pattern, None));
                     self.nested_constraints_execute(sub_candidate, a_pattern);
                     self.subexpr_pattern_stack.pop();
 
@@ -567,16 +566,18 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                                         layer: 0,
                                         path: vec![],
                                     },
-                                    true,
+                                    Some(0),
                                 ));
-                                let pc = self.count;
                                 self.nested_constraints_execute(
                                     &sub_candidate[c_start..c_start + c_len],
                                     next_pattern_idx,
                                 );
-                                self.subexpr_pattern_stack.pop();
-                                if self.count > pc {
-                                    f_ranges.push((c_start, c_start + c_len))
+                                if let (_, _, Some(found)) =
+                                    self.subexpr_pattern_stack.pop().unwrap()
+                                {
+                                    if found > 0 {
+                                        f_ranges.push((c_start, c_start + c_len))
+                                    }
                                 }
                             }
                         }
