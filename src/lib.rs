@@ -206,7 +206,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
         if self.subexpr_pattern_stack.len() > 0 {
             return;
         }
-
+        // println!("Solve {:?}", self.candidate_stack);
         let failed: FxHashSet<usize> = FxHashSet::default();
         let next_pattern = self.patterns.get(self.candidate_stack.len()).unwrap();
         let next_candidates: Box<dyn Iterator<Item = &&str>>;
@@ -224,8 +224,10 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                 range.0 == range.1
             };
 
-            if !now_in_streak && in_streak && probe != "" {
-                probes.push(probe.clone());
+            if !now_in_streak && in_streak {
+                if probe != "" && probe != "^" {
+                    probes.push(probe.clone());
+                }
                 probe.clear();
             }
 
@@ -303,7 +305,8 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
 
         if candidate.len() == 0 && pattern_len == 0 && self.subexpr_pattern_stack.len() > 0 {
             // println!("Succese D{:?}", self.subexpr_pattern_stack);
-            let (next_candidate, next_pattern, mut capped) = self.subexpr_pattern_stack.pop().unwrap();
+            let (next_candidate, next_pattern, mut capped) =
+                self.subexpr_pattern_stack.pop().unwrap();
             if capped.is_none() {
                 self.nested_constraints_execute(next_candidate, next_pattern.clone());
             } else {
