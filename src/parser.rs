@@ -43,13 +43,21 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
                 )]
             },
         ),
-        value(
+       value(
             vec![LiteralFrom("abcdefghijklmnopqrstuvwxyz".chars().collect())],
             tag("."),
         ),
         value(vec![LiteralFrom("aeiou".chars().collect())], tag("@")),
         // TODO add back support for >1 `*` across patterns, with a dedicated NonceVariable or `_` indicator or something
         value(vec![Star], tag("*")),
+        value(
+            vec![Word(WordDirection::Forwards)],
+            tag(">"),
+        ),
+         value(
+            vec![Word(WordDirection::Backwards)],
+            tag("<"),
+        ),
         value(
             vec![LiteralFrom("bcdfghjklmnpqrstvwxyz".chars().collect())],
             tag("#"),
@@ -117,7 +125,7 @@ fn bonge(constraint: Constraint, optional: BongeSetting) -> Constraint {
                     Disjunction((vec![acc], bonged_clause))
                 })
         }
-        Anagram(_, _) | Star | Variable(_) => constraint,
+        Anagram(_, _) | Star | Word(_) | Variable(_) => constraint,
     }
 }
 
@@ -256,7 +264,7 @@ pub fn parser_exec<'ctx>(q: &str) -> ExecutionContext<'static, 'ctx> {
                 .flat_map(|cs| cs.iter().flat_map(|c| mention(c).into_iter()))
                 .collect(),
             Subpattern(v) | Anagram(_, v) => v.iter().flat_map(|c| mention(c)).collect(),
-            Star | Literal(_) | LiteralFrom(_) => vec![],
+            Star | Word(_) | Literal(_) | LiteralFrom(_) => vec![],
         }
     }
     let variables_mentioned = patterns

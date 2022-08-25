@@ -12,11 +12,15 @@ use itertools::Itertools;
 
 use std::collections::HashMap;
 use std::ops::Range;
-use std::{
-    ops::{Index, IndexMut},
-};
+use std::ops::{Index, IndexMut};
 
 use Constraint::*;
+
+#[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd)]
+pub enum WordDirection {
+    Forwards,
+    Backwards,
+}
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd)]
 pub enum Constraint {
@@ -28,6 +32,7 @@ pub enum Constraint {
     Disjunction((Vec<Constraint>, Vec<Constraint>)),
     Conjunction((Vec<Constraint>, Vec<Constraint>)),
     Subpattern(Vec<Constraint>),
+    Word(WordDirection),
 }
 
 use rustc_hash::FxHashSet;
@@ -99,6 +104,7 @@ fn length_range(
                 _ => (arange.0.max(brange.0), arange.1.min(brange.1)),
             }
         }
+        Word(_dir) => (2, 255),
         Star => (0, 255),
     }
 }
@@ -400,6 +406,31 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                         }),
                     );
                 }
+                Word(dir) => {
+                    let mut probe = "^".to_string();
+                    match dir {
+                        &WordDirection::Backwards => {
+                            probe += candidate[streak_start..streak_end]
+                                .chars()
+                                .rev()
+                                .collect::<String>()
+                                .as_str()
+                        }
+                        &WordDirection::Forwards => probe += &candidate[streak_start..streak_end],
+                    };
+                    probe += "$";
+
+                    if SUBSTRINGS.contains_key(&probe) {
+                        self.nested_constraints_execute(
+                            &candidate[remainder_start..remainder_end],
+                            pattern_idx.index(if anchored_left {
+                                1..pattern_len
+                            } else {
+                                0..pattern_len - 1
+                            }),
+                        );
+                    }
+                }
 
                 Disjunction((b, a)) => {
                     let sub_candidate = &candidate[streak_start..streak_end];
@@ -700,28 +731,29 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
     }
 }
 
-use serde::{Serialize};
+use serde::Serialize;
 
 #[wasm_bindgen]
 #[derive(Eq, PartialEq, Clone, Debug, Serialize)]
 struct JsResult {
     words: Vec<String>,
-    bindings: HashMap<char, String>
+    bindings: HashMap<char, String>,
 }
-
 
 #[wasm_bindgen]
 pub fn q(query: &str, f: &js_sys::Function) -> usize {
     let _wc = SUBSTRINGS.len(); // trigger lazy static
     let mut count = 0;
-    let mut last_val = JsResult { words: vec![], bindings: HashMap::default() };
+    let mut last_val = JsResult {
+        words: vec![],
+        bindings: HashMap::default(),
+    };
     let mut cb = |a: &Vec<&str>, b: &VariableMap<Option<&str>>| {
         let words = a.iter().map(|v| v.to_string()).collect_vec();
-        let bindings = ('A'..'Z').filter_map(|v| b[v].map(|binding| (v, binding.to_string()))).collect();
-        let result = JsResult {
-            words,
-            bindings
-        };
+        let bindings = ('A'..'Z')
+            .filter_map(|v| b[v].map(|binding| (v, binding.to_string())))
+            .collect();
+        let result = JsResult { words, bindings };
 
         if result != last_val {
             last_val = result.clone();
