@@ -6,7 +6,6 @@
   <title>qitty</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-
   <style>
     html,
     body {
@@ -48,7 +47,7 @@
 
 <body>
 </body>
-<input id="q" type="text"  />
+<input id="q" type="text" />
 <button onclick="runQuery()">Run</button>
 <textarea id="result" READONLY>Loading qitty...</textarea>
 <script>
@@ -73,6 +72,14 @@
     }
   });
 
+  window.addEventListener("hashchange", e => {
+    let newHash = new URL(e.newURL).hash.slice(1);
+    if (newHash !== q.value) {
+      q.value = newHash;
+      runQuery();
+    }
+  })
+
 
   function runQuery() {
     window.location.hash = q.value;
@@ -82,7 +89,7 @@
 
   function onComplete(c) {
     console.log("Complete", c);
-    window.document.getElementById("result").innerHTML += JSON.stringify(c);
+    window.document.getElementById("result").innerHTML += `\n${JSON.stringify(c)}`;
   }
 
   function onResult(r) {
@@ -94,8 +101,8 @@
       }
     })
     window.document.getElementById("result").innerHTML +=
+      (bindings.length ? `\n(${bindings.join(", ")})\n` : "") +
       r.words.join("; ") +
-      (r.bindings ? `&nbsp;&nbsp;&nbsp;(${bindings.join(", ")})` : "") +
       "\n";
   }
 </script>
