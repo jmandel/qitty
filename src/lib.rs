@@ -700,7 +700,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
     }
 }
 
-use serde::{Serialize, Deserialize};
+use serde::{Serialize};
 
 #[wasm_bindgen]
 #[derive(Eq, PartialEq, Clone, Debug, Serialize)]
@@ -728,7 +728,7 @@ pub fn q(query: &str, f: &js_sys::Function) -> usize {
             count += 1;
             let this = JsValue::null();
             let x = JsValue::from_serde(&result).unwrap();
-            f.call1(&this, &x);
+            let _result = f.call1(&this, &x);
         }
         true
     };

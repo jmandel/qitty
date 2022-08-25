@@ -18,6 +18,8 @@ fn word_n<'a>(n: usize, m: usize) -> Vec<&'a str> {
 }
 
 lazy_static! {
+
+pub static ref ALPHABET: Vec<char>  = "abcdefghijklmnopqrstuvwxyz".chars().collect();
 pub static ref DICTIONARY: Vec<&'static str> = UKACD17
     .lines()
     .map(|a| a)

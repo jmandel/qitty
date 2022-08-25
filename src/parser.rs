@@ -1,5 +1,6 @@
-use std::str::FromStr;
+use std::{ops::Sub, str::FromStr};
 
+use crate::dict::ALPHABET;
 #[allow(unused_imports)]
 use crate::*;
 
@@ -66,6 +67,60 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
 
     Ok((input, m))
 }
+
+#[derive(Copy, Clone)]
+enum BongeSetting {
+    Misprint,
+    OptionalMisprint
+}
+
+fn bonge(constraint: Constraint, optional: BongeSetting) -> Constraint {
+    match constraint {
+        Literal(c) => LiteralFrom(ALPHABET.iter().filter(|l| **l != c).copied().collect()),
+        LiteralFrom(cs) => LiteralFrom(
+            ALPHABET
+                .iter()
+                .filter(|l| !cs.contains(l))
+                .copied()
+                .collect(),
+        ),
+        Disjunction((a, b)) => {
+            let mut abonged = bonge(Subpattern(a), optional);
+            abonged = match abonged {
+                Subpattern(ab) if ab.len() == 1 => ab[0].clone(),
+                _ => abonged,
+            };
+            let mut bbonged = bonge(Subpattern(b), optional);
+            bbonged = match bbonged {
+                Subpattern(bb) if bb.len() == 1 => bb[0].clone(),
+                _ => bbonged,
+            };
+
+            Disjunction((vec![abonged], vec![bbonged]))
+        }
+        Conjunction((a, b)) => {
+            let a = bonge(Subpattern(a), optional);
+            let b = bonge(Subpattern(b), optional);
+            Conjunction((vec![a], vec![b]))
+        }
+        Subpattern(vs) => {
+            let mut init = Subpattern(if let BongeSetting::OptionalMisprint = optional { vs.clone() } else { vec![] });
+            init = match init {
+                Subpattern(vs) if vs.len() == 1 => vs[0].clone(),
+                _ => init,
+            };
+            vs.iter()
+                .enumerate()
+                .fold(init, |acc: Constraint, (i, c): (usize, &Constraint)| {
+                    let mut bonged_clause = vs.clone();
+                    bonged_clause[i] = bonge(c.clone(), optional);
+                    Disjunction((vec![acc], bonged_clause))
+                })
+        }
+        Anagram(_, _) | Star | Variable(_) => constraint,
+    }
+}
+
 fn production_varsingle_length_constraint(input: &str) -> IResult<&str, QueryTerm> {
     let (input, result) =
         delimited(tag("|"), one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), tag("|"))(input)?;
@@ -128,10 +183,12 @@ fn production_vardifferent_constraint(input: &str) -> IResult<&str, QueryTerm> {
 }
 
 fn production_patttern_term(input: &str) -> IResult<&str, QueryTerm> {
+    let (input, qualifier) = opt(alt((tag("`"), tag("?`"))))(input)?;
+
     let (input, t1) = many1(production_pattern_item)(input)?;
     let t1: Vec<_> = t1.into_iter().flatten().collect();
 
-    let (input, items) = fold_many0(
+    let (input, mut items) = fold_many0(
         pair(alt((tag("&"), tag("|"))), many1(production_pattern_item)),
         || t1.clone(),
         |acc, b| {
@@ -143,6 +200,18 @@ fn production_patttern_term(input: &str) -> IResult<&str, QueryTerm> {
             }
         },
     )(input)?;
+
+    items = match qualifier {
+        None => items,
+        Some(q) => match bonge(Subpattern(items), match q {
+            "?`" => BongeSetting::OptionalMisprint,
+            "`" => BongeSetting::Misprint,
+            _ => panic!()
+        }) {
+            Subpattern(vs) => vs,
+            c => vec![c],
+        }
+    };
 
     Ok((input, QueryTerm::QueryTermConstraints(items)))
 }
@@ -186,10 +255,8 @@ pub fn parser_exec<'ctx>(q: &str) -> ExecutionContext<'static, 'ctx> {
                 .iter()
                 .flat_map(|cs| cs.iter().flat_map(|c| mention(c).into_iter()))
                 .collect(),
-            Subpattern(v) | Anagram(_, v) => {
-                v.iter().flat_map(|c| mention(c)).collect()
-            },
-            Star | Literal(_) | LiteralFrom(_) => vec![]
+            Subpattern(v) | Anagram(_, v) => v.iter().flat_map(|c| mention(c)).collect(),
+            Star | Literal(_) | LiteralFrom(_) => vec![],
         }
     }
     let variables_mentioned = patterns
@@ -200,7 +267,6 @@ pub fn parser_exec<'ctx>(q: &str) -> ExecutionContext<'static, 'ctx> {
             vm
         });
 
-        println!("MEntions {:?}", variables_mentioned);
     let variables_constrained =
         variable_length
             .iter()
@@ -237,6 +303,7 @@ pub fn parser_exec<'ctx>(q: &str) -> ExecutionContext<'static, 'ctx> {
 
 pub mod tests {
 
+    use crate::dict::DICTIONARY;
     // rust analyzer seems confused about these being "unused" (or I am ;-))
     #[allow(unused_imports)]
     use crate::{
@@ -254,7 +321,7 @@ pub mod tests {
         let parg: String = env::args().last().unwrap();
         println!("{:?}", parse_query_terms(&parg));
         let word_count = SUBSTRINGS.len();
-        println!("Total words: {}", word_count);
+        println!("{} word with {} substrings", DICTIONARY.len(), word_count);
 
         let mut results = vec![];
         let mut cb = |a: &Vec<&str>, b: &VariableMap<Option<&str>>| {
