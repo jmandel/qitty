@@ -19,10 +19,9 @@
       padding: 1em;
       box-sizing: border-box;
       display: grid;
-      grid-template-rows: 2em auto;
-      grid-template-columns: auto 6em;
+      grid-template-rows: 2em 1em auto;
+      grid-template-columns: auto 4em;
       gap: 1em;
-      ;
     }
 
     input,
@@ -33,14 +32,45 @@
       font-size: 1em;
     }
 
+    #result {
+      grid-row: 2;
+      grid-column-start: 1;
+      grid-column-end: 2;
+
+    }
+
     input {
       background-color: lightgoldenrodyellow;
       padding-left: 2em;
     }
 
-    textarea {
-      grid-row: 2;
+    tr>td+td, tr>th+th {
+      border-left-width: 10px;
+    }
+
+    td, th {
+      border: 0px solid transparent;
+    }
+
+    table {
+      height: 0px;
+      width: 0px;
+      grid-row: 3;
       grid-column: 1 / span 2;
+      font-size: 1.5em;
+    }
+
+    tr,
+    tbody,
+    th {
+      height: 10px;
+      white-space: nowrap;
+    }
+
+    th {
+      text-align: left;
+      vertical-align: top;
+      margin-right: 2px;
     }
   </style>
 </head>
@@ -49,15 +79,18 @@
 </body>
 <input id="q" type="text" />
 <button onclick="runQuery()">Run</button>
-<textarea id="result" READONLY>Loading qitty...</textarea>
+<div id="result">Loading...</div>
+<table id="table">
+</table>
 <script>
   const q = window.document.getElementById("q");
+  const table = window.document.getElementById("table");
   q.addEventListener("keyup", function (event) {
     if (event.key === "Enter") {
       runQuery()
     }
   });
-  let startingPattern = window.location.hash.slice(1) || "....sand";
+  let startingPattern = decodeURIComponent(location.hash.slice(1) || "....sand");
   q.setAttribute("value", startingPattern);
   q.select();
 
@@ -73,7 +106,7 @@
   });
 
   window.addEventListener("hashchange", e => {
-    let newHash = new URL(e.newURL).hash.slice(1);
+    let newHash = decodeURIComponent(new URL(e.newURL).hash.slice(1));
     if (newHash !== q.value) {
       q.value = newHash;
       runQuery();
@@ -81,15 +114,17 @@
   })
 
 
+  let schema = [];
   function runQuery() {
     window.location.hash = q.value;
-    window.document.getElementById("result").innerHTML = `Querying: ${q.value}\n---\n`;
+    table.innerHTML = "";
+    schema = [];
     worker.postMessage({ q: q.value.replaceAll(" ", "") });
   }
 
   function onComplete(c) {
     console.log("Complete", c);
-    window.document.getElementById("result").innerHTML += `\n${JSON.stringify(c)}`;
+    window.document.getElementById("result").innerHTML = `\n${JSON.stringify(c)}`;
   }
 
   function onResult(r) {
@@ -97,13 +132,16 @@
     let bindings = [];
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").forEach((b) => {
       if (r.bindings[b]) {
-        bindings.push(`${b}=${r.bindings[b]}`);
+        bindings.push([b, r.bindings[b]]);
       }
     })
-    window.document.getElementById("result").innerHTML +=
-      (bindings.length ? `\n(${bindings.join(", ")})\n` : "") +
-      r.words.join("; ") +
-      "\n";
+
+    if (schema.length == 0) {
+      schema = [r.words.length, bindings.length];
+      table.innerHTML = `<tr>${r.words.map((_, i) => `<th>Word ${i}</th>`).join(" ")}${bindings.map(b => `<th>${b[0]}</th>`).join(" ")}</tr>`
+    }
+
+    table.innerHTML += `<tr>${r.words.map(w => `<td>${w}</td>`).join(" ")}${bindings.map(b => `<td>${b[1]}</td>`).join(" ")}</tr>`
   }
 </script>
 

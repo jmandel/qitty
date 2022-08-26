@@ -419,6 +419,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                         &WordDirection::Forwards => probe += &candidate[streak_start..streak_end],
                     };
                     probe += "$";
+                    println!("Probe {}", probe);
 
                     if SUBSTRINGS.contains_key(&probe) {
                         self.nested_constraints_execute(
