@@ -131,7 +131,7 @@
     console.log("Result", r);
     let bindings = [];
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").forEach((b) => {
-      if (r.bindings[b]) {
+      if (r.bindings[b] !== undefined) {
         bindings.push([b, r.bindings[b]]);
       }
     })
