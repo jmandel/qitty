@@ -43,21 +43,52 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
                 )]
             },
         ),
-       value(
+        map(
+            delimited(
+                tag("["),
+                pair(
+                    opt(tag("!")),
+                    many1(alt((
+                        map(
+                            tuple((
+                                one_of("abcdefghijklmnopqrstuvwxyz"),
+                                tag("-"),
+                                one_of("abcdefghijklmnopqrstuvwxyz"),
+                            )),
+                            |(c1, _, c2)| {
+                                ALPHABET
+                                    .iter()
+                                    .filter(|l| l >= &&c1 && l <= &&c2)
+                                    .copied()
+                                    .collect()
+                            },
+                        ),
+                        map(one_of("abcdefghijklmnopqrstuvwxyz"), |v| vec![v]),
+                    ))),
+                ),
+                tag("]"),
+            ),
+            |(negated, charsets)| {
+                let chars = charsets.into_iter().flatten().collect_vec();
+                vec![LiteralFrom(match negated {
+                    Some(_) => ALPHABET
+                        .iter()
+                        .filter(|l| !chars.contains(l))
+                        .copied()
+                        .collect(),
+                    None => chars,
+                })]
+            },
+        ),
+        value(
             vec![LiteralFrom("abcdefghijklmnopqrstuvwxyz".chars().collect())],
             tag("."),
         ),
         value(vec![LiteralFrom("aeiou".chars().collect())], tag("@")),
         // TODO add back support for >1 `*` across patterns, with a dedicated NonceVariable or `_` indicator or something
         value(vec![Star], tag("*")),
-        value(
-            vec![Word(WordDirection::Forwards)],
-            tag(">"),
-        ),
-         value(
-            vec![Word(WordDirection::Backwards)],
-            tag("<"),
-        ),
+        value(vec![Word(WordDirection::Forwards)], tag(">")),
+        value(vec![Word(WordDirection::Backwards)], tag("<")),
         value(
             vec![LiteralFrom("bcdfghjklmnpqrstvwxyz".chars().collect())],
             tag("#"),
@@ -79,7 +110,7 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
 #[derive(Copy, Clone)]
 enum BongeSetting {
     Misprint,
-    OptionalMisprint
+    OptionalMisprint,
 }
 
 fn bonge(constraint: Constraint, optional: BongeSetting) -> Constraint {
@@ -112,7 +143,11 @@ fn bonge(constraint: Constraint, optional: BongeSetting) -> Constraint {
             Conjunction((vec![a], vec![b]))
         }
         Subpattern(vs) => {
-            let mut init = Subpattern(if let BongeSetting::OptionalMisprint = optional { vs.clone() } else { vec![] });
+            let mut init = Subpattern(if let BongeSetting::OptionalMisprint = optional {
+                vs.clone()
+            } else {
+                vec![]
+            });
             init = match init {
                 Subpattern(vs) if vs.len() == 1 => vs[0].clone(),
                 _ => init,
@@ -211,14 +246,17 @@ fn production_patttern_term(input: &str) -> IResult<&str, QueryTerm> {
 
     items = match qualifier {
         None => items,
-        Some(q) => match bonge(Subpattern(items), match q {
-            "?`" => BongeSetting::OptionalMisprint,
-            "`" => BongeSetting::Misprint,
-            _ => panic!()
-        }) {
+        Some(q) => match bonge(
+            Subpattern(items),
+            match q {
+                "?`" => BongeSetting::OptionalMisprint,
+                "`" => BongeSetting::Misprint,
+                _ => panic!(),
+            },
+        ) {
             Subpattern(vs) => vs,
             c => vec![c],
-        }
+        },
     };
 
     Ok((input, QueryTerm::QueryTermConstraints(items)))
