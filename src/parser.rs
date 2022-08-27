@@ -24,7 +24,9 @@ enum QueryTerm {
 }
 
 fn parse_qat_element(input: &str) -> IResult<&str, Constraint> {
-    Ok(alt((
+    let (input, reversed) = opt(tag("~"))(input)?;
+
+    let (input, mut item) = alt((
         map(one_of("abcdefghijklmnopqrstuvwxyz"), |c| Literal(c)),
         value(
             LiteralFrom("abcdefghijklmnopqrstuvwxyz".chars().collect()),
@@ -78,7 +80,13 @@ fn parse_qat_element(input: &str) -> IResult<&str, Constraint> {
         // A digit from 0 to 9 matches any letter, the same one throughout the pattern. Different digits match different letters.
         map(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), |c| Variable(c)),
         delimited(tag("("), parse_qat_compound_pattern, tag(")")),
-    ))(input)?)
+    ))(input)?;
+
+    item = match reversed {
+        Some(_) => Reverse(vec![item]),
+        None=> item
+    };
+    Ok((input, item))
 }
 
 fn parse_qat_simple_pattern(input: &str) -> IResult<&str, Constraint> {
@@ -107,26 +115,11 @@ fn parse_qat_simple_pattern(input: &str) -> IResult<&str, Constraint> {
     Ok((input, result))
 }
 
-fn parse_qat_compound_pattern_precedence_3(input: &str) -> IResult<&str, Constraint> {
-    let (input, item) = map(
-        tuple((opt(tag("~")), parse_qat_simple_pattern)),
-        |(reversed, item)| {
-            if reversed.is_some() {
-                Reverse(match item {
-                    Subpattern(vs) => vs,
-                    _ => vec![item],
-                })
-            } else {
-                item
-            }
-        },
-    )(input)?;
-    Ok((input, item))
-}
+
 
 fn parse_qat_compound_pattern_precedence_2(input: &str) -> IResult<&str, Constraint> {
     let (input, item) = map(
-        tuple((opt(tag("!")), parse_qat_compound_pattern_precedence_3)),
+        tuple((opt(tag("!")), parse_qat_simple_pattern)),
         |(negated, item)| {
             if negated.is_some() {
                 Negate(match item {
