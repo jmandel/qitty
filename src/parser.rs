@@ -24,7 +24,8 @@ enum QueryTerm {
 }
 
 fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
-    let (input, m) = alt((
+    let (input, reversal) = opt(tag("~"))(input)?;
+    let (input, mut items) = alt((
         map(
             tuple((tag("/*"), many1(production_pattern_item))),
             |(_, avec)| {
@@ -104,7 +105,12 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
         ),
     ))(input)?;
 
-    Ok((input, m))
+    items = match reversal {
+        None => items,
+        Some(_) => vec![Reverse(items)],
+    };
+
+    Ok((input, items))
 }
 
 #[derive(Copy, Clone)]
@@ -142,6 +148,8 @@ fn bonge(constraint: Constraint, optional: BongeSetting) -> Constraint {
             let b = bonge(Subpattern(b), optional);
             Conjunction((vec![a], vec![b]))
         }
+        Negate(vs) => Negate(vec![bonge(Subpattern(vs), optional)]),
+        Reverse(vs) => Reverse(vec![bonge(Subpattern(vs), optional)]),
         Subpattern(vs) => {
             let mut init = Subpattern(if let BongeSetting::OptionalMisprint = optional {
                 vs.clone()
@@ -225,21 +233,29 @@ fn production_vardifferent_constraint(input: &str) -> IResult<&str, QueryTerm> {
     Ok((input, QueryTerm::QueryTermVariablesInequality(varnames)))
 }
 
+fn production_pattern_clause(input: &str) -> IResult<&str, Vec<Constraint>> {
+    let (input, clause) = tuple((opt(tag("!")), many1(production_pattern_item)))(input)?;
+    let clause = if clause.0.is_some() {
+        vec![Negate(clause.1.into_iter().flatten().collect())]
+    } else {
+        clause.1.into_iter().flatten().collect()
+    };
+    Ok((input, clause))
+}
+
 fn production_patttern_term(input: &str) -> IResult<&str, QueryTerm> {
     let (input, qualifier) = opt(alt((tag("`"), tag("?`"))))(input)?;
 
-    let (input, t1) = many1(production_pattern_item)(input)?;
-    let t1: Vec<_> = t1.into_iter().flatten().collect();
+    let (input, t1) = production_pattern_clause(input)?;
 
     let (input, mut items) = fold_many0(
-        pair(alt((tag("&"), tag("|"))), many1(production_pattern_item)),
+        pair(alt((tag("&"), tag("|"))), production_pattern_clause),
         || t1.clone(),
         |acc, b| {
-            let b_items: Vec<_> = b.1.into_iter().flatten().collect();
             if b.0 == "&" {
-                vec![Conjunction((acc, b_items))]
+                vec![Conjunction((acc, b.1))]
             } else {
-                vec![Disjunction((acc, b_items))]
+                vec![Disjunction((acc, b.1))]
             }
         },
     )(input)?;
@@ -275,7 +291,7 @@ fn parse_query_terms(input: &str) -> Vec<QueryTerm> {
     .unwrap()
     .1
 }
-pub fn parser_exec<'ctx>(q: &str) -> ExecutionContext<'static, 'ctx> {
+pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
     let query_terms = parse_query_terms(&q);
 
     let patterns = query_terms
@@ -301,7 +317,9 @@ pub fn parser_exec<'ctx>(q: &str) -> ExecutionContext<'static, 'ctx> {
                 .iter()
                 .flat_map(|cs| cs.iter().flat_map(|c| mention(c).into_iter()))
                 .collect(),
-            Subpattern(v) | Anagram(_, v) => v.iter().flat_map(|c| mention(c)).collect(),
+            Subpattern(v) | Anagram(_, v) | Negate(v) | Reverse(v) => {
+                v.iter().flat_map(|c| mention(c)).collect()
+            }
             Star | Word(_) | Literal(_) | LiteralFrom(_) => vec![],
         }
     }
@@ -370,7 +388,7 @@ pub mod tests {
         println!("{} word with {} substrings", DICTIONARY.len(), word_count);
 
         let mut results = vec![];
-        let mut cb = |a: &Vec<&str>, b: &VariableMap<Option<&str>>| {
+        let mut cb = |a: &Vec<&str>, b: &VariableMap<Option<String>>| {
             let result = a.iter().map(|v| v.to_string()).collect_vec();
             if Some(&result) != results.last() {
                 println!(

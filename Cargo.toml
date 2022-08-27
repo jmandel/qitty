@@ -27,5 +27,5 @@ pprof = { version = "0.3", features = ["flamegraph"] }
 criterion-macro = "0.3"
 
 [[bench]]
-name = "example"
+name = "qbenchmark"
 harness = false

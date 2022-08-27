@@ -33,6 +33,8 @@ pub enum Constraint {
     Conjunction((Vec<Constraint>, Vec<Constraint>)),
     Subpattern(Vec<Constraint>),
     Word(WordDirection),
+    Reverse(Vec<Constraint>),
+    Negate(Vec<Constraint>),
 }
 
 use rustc_hash::FxHashSet;
@@ -42,12 +44,45 @@ use std::str;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VariableMap<T>(pub [T; 26]);
 
-impl<T> Default for VariableMap<T>
-where
-    T: Default + Copy,
-{
+impl Default for VariableMap<(usize, usize)> {
     fn default() -> Self {
-        Self([T::default(); 26])
+        Self([
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+            (0, 0),
+        ])
+    }
+}
+
+impl<T> Default for VariableMap<Option<T>> {
+    fn default() -> Self {
+        Self([
+            None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+            None, None, None, None, None, None, None, None, None, None, None, None,
+        ])
     }
 }
 
@@ -67,7 +102,7 @@ impl<T> IndexMut<char> for VariableMap<T> {
 
 fn length_range(
     p: &Constraint,
-    bindings: &VariableMap<Option<&str>>,
+    bindings: &VariableMap<Option<String>>,
     spec: &VariableMap<(usize, usize)>,
 ) -> (usize, usize) {
     match p {
@@ -79,13 +114,13 @@ fn length_range(
                 (acc.0 + v.0, acc.1 + v.1)
             }),
         &Variable(v) => {
-            if let Some(b) = bindings[v] {
+            if let Some(b) = &bindings[v] {
                 (b.len(), b.len())
             } else {
                 (spec[v].0, spec[v].1)
             }
         }
-        Subpattern(v) => v
+        Subpattern(v) | Reverse(v) => v
             .iter()
             .map(|i| length_range(i, bindings, spec))
             .fold((0, 0), |acc, v| (acc.0 + v.0, acc.1 + v.1)),
@@ -105,7 +140,7 @@ fn length_range(
             }
         }
         Word(_dir) => (2, 255),
-        Star => (0, 255),
+        Star | Negate(_) => (0, 255),
     }
 }
 
@@ -151,16 +186,16 @@ impl PatternIndex {
 pub struct ExecutionContext<'a, 'b> {
     candidate_stack: Vec<&'a str>,
     candidate_stack_goal: usize,
-    bindings: VariableMap<Option<&'a str>>,
+    bindings: VariableMap<Option<String>>,
     patterns: Vec<Vec<Constraint>>,
     spec_var_length: VariableMap<(usize, usize)>,
     spec_var_inequality: Vec<Vec<char>>,
     spec_var_sets_length: Vec<(Vec<char>, usize, usize)>,
     active: bool,
     count: usize,
-    subexpr_pattern_stack: Vec<(&'a str, PatternIndex, Option<usize>)>, // replace with a simple int index
+    subexpr_pattern_stack: Vec<(String, PatternIndex, Option<usize>)>, // replace with a simple int index
     config_no_binding_in_subexpressions: bool,
-    callback: Option<&'b mut dyn FnMut(&Vec<&'a str>, &VariableMap<Option<&'a str>>) -> bool>,
+    callback: Option<&'b mut dyn FnMut(&Vec<&'a str>, &VariableMap<Option<String>>) -> bool>,
 }
 
 impl<'a, 'b> Index<&PatternIndex> for ExecutionContext<'a, 'b> {
@@ -174,7 +209,7 @@ impl<'a, 'b> Index<&PatternIndex> for ExecutionContext<'a, 'b> {
                     Branch::Right => &r[..],
                     _ => panic!("Invalid branch direction"),
                 },
-                Subpattern(ref l) => &l[..],
+                Subpattern(ref l) | Reverse(ref l) | Negate(ref l) => &l[..],
                 Anagram(_open, ref v) => match direction {
                     Branch::AnagramIndex(idx) => &v[*idx..*idx + 1],
                     _ => panic!("Invalid branch direction"),
@@ -222,7 +257,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
         let mut probes: Vec<String> = vec![];
         for c in next_pattern {
             let now_in_streak = match c {
-                Literal(_) | Variable(_) => true,
+                Literal(_) | Variable(_) | Reverse(_) => true,
                 _ => false,
             } && {
                 //TODO move length_range into the executino context?
@@ -248,9 +283,21 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     Literal(c) => {
                         probe.push(*c);
                     }
-                    Variable(v) => match self.bindings[*v] {
+                    // TODO recursive function where Reverse calls on sub-logic
+                    // instead of paritally/poorly recapitulating the logic for Variable
+                    Reverse(vs) if vs.len() == 1 => match &vs[0] {
+                        Variable(v) => match &self.bindings[*v] {
+                            Some(bound) => probe += &bound[..].chars().rev().collect::<String>(),
+                            None => {
+                                probe.clear();
+                                in_streak = false;
+                            }
+                        },
+                        _ => panic!(),
+                    },
+                    Variable(v) => match &self.bindings[*v] {
                         Some(bound) => {
-                            probe += bound;
+                            probe += &bound;
                         }
                         None => {
                             probe.clear();
@@ -290,7 +337,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
         return self.execute_pattern(next_candidates);
     }
 
-    fn nested_constraints_execute(&'c mut self, candidate: &'a str, pattern_idx: PatternIndex) {
+    fn nested_constraints_execute(&'c mut self, candidate: &str, pattern_idx: PatternIndex) {
         let pattern_len = pattern_idx.bound.len();
         // for i in 0..self.subexpr_pattern_stack.len() {
         //     print!("  ");
@@ -314,12 +361,12 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
             let (next_candidate, next_pattern, mut capped) =
                 self.subexpr_pattern_stack.pop().unwrap();
             if capped.is_none() {
-                self.nested_constraints_execute(next_candidate, next_pattern.clone());
+                self.nested_constraints_execute(&next_candidate, next_pattern.clone());
             } else {
                 capped = capped.map(|c| c + 1);
             }
             self.subexpr_pattern_stack
-                .push((next_candidate, next_pattern, capped));
+                .push((next_candidate.clone(), next_pattern, capped));
             return;
         }
 
@@ -380,7 +427,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     let vlen = v.len();
 
                     self.subexpr_pattern_stack.push((
-                        &candidate[remainder_start..remainder_end],
+                        candidate[remainder_start..remainder_end].to_string(),
                         pattern_idx.index(if anchored_left {
                             1..pattern_len
                         } else {
@@ -395,6 +442,60 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                         pattern_idx.step_in(constraint_index, Branch::Straight, vlen),
                     );
                     self.subexpr_pattern_stack.pop();
+                }
+                Reverse(v) => {
+                    let vlen = v.len();
+                    self.subexpr_pattern_stack.push((
+                        candidate[remainder_start..remainder_end].to_string(),
+                        pattern_idx.index(if anchored_left {
+                            1..pattern_len
+                        } else {
+                            0..pattern_len - 1
+                        }),
+                        None,
+                    ));
+
+                    let reversed_sub_candidate = candidate[streak_start..streak_end]
+                        .chars()
+                        .rev()
+                        .collect::<String>();
+
+                    self.nested_constraints_execute(
+                        &reversed_sub_candidate,
+                        pattern_idx.step_in(constraint_index, Branch::Straight, vlen),
+                    );
+
+                    self.subexpr_pattern_stack.pop();
+                }
+                Negate(vs) => {
+                    let sub_candidate = &candidate[streak_start..streak_end];
+                    let next_pattern_idx =
+                        pattern_idx.step_in(constraint_index, Branch::Straight, vs.len());
+                    self.subexpr_pattern_stack.push((
+                        "".to_string(),
+                        PatternIndex {
+                            bound: 0..0,
+                            layer: 0,
+                            path: vec![],
+                        },
+                        Some(0),
+                    ));
+                    self.nested_constraints_execute(sub_candidate, next_pattern_idx);
+
+                    if let (_, _, Some(found)) = self.subexpr_pattern_stack.pop().unwrap() {
+                        if found > 0 {
+                            continue 'streaks;
+                        } else {
+                            self.nested_constraints_execute(
+                                &candidate[remainder_start..remainder_end],
+                                pattern_idx.index(if anchored_left {
+                                    1..pattern_len
+                                } else {
+                                    0..pattern_len - 1
+                                }),
+                            );
+                        }
+                    }
                 }
                 Star => {
                     self.nested_constraints_execute(
@@ -445,7 +546,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     let pattern_continues_beyond = streak_len > 0 || pattern_len > 1;
                     if pattern_continues_beyond {
                         self.subexpr_pattern_stack.push((
-                            &candidate[remainder_start..remainder_end],
+                            candidate[remainder_start..remainder_end].to_string(),
                             pattern_idx.index(if anchored_left {
                                 1..pattern_len
                             } else {
@@ -480,7 +581,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     let later_constraints_exist = streak_len > 0 || pattern_len == 1;
                     if later_constraints_exist {
                         self.subexpr_pattern_stack.push((
-                            &candidate[remainder_start..remainder_end],
+                            candidate[remainder_start..remainder_end].to_string(),
                             pattern_idx.index(if anchored_left {
                                 1..pattern_len
                             } else {
@@ -492,7 +593,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     let a_pattern = pattern_idx.step_in(constraint_index, Branch::Right, a);
                     let b_pattern = pattern_idx.step_in(constraint_index, Branch::Left, b);
                     self.subexpr_pattern_stack
-                        .push((sub_candidate, b_pattern, None));
+                        .push((sub_candidate.to_string(), b_pattern, None));
                     self.nested_constraints_execute(sub_candidate, a_pattern);
                     self.subexpr_pattern_stack.pop();
 
@@ -527,14 +628,16 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                 Variable(v) => {
                     let v = *v;
                     // println!("Check {:?} var {} {:?} {:?} seg {:?}", pattern, v, self.bindings, candidate, &candidate[streak_start..streak_end]);
-                    let reset_var = match self.bindings[v] {
+                    let reset_var = match &self.bindings[v] {
                         Some(val) if val == &candidate[streak_start..streak_end] => Some(val),
                         None => {
-                            self.bindings[v] = Some(&candidate[streak_start..streak_end]);
+                            self.bindings[v] =
+                                Some(candidate[streak_start..streak_end].to_string());
                             None
                         }
                         _ => continue 'streaks,
-                    };
+                    }
+                    .cloned();
 
                     /* !=AB */
                     for var_distinct_constraint in &self.spec_var_inequality {
@@ -550,8 +653,8 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     for (vset, a, b) in &self.spec_var_sets_length {
                         let (bound_count, bound_sum): (usize, usize) = vset
                             .iter()
-                            .map(|v| self.bindings[*v])
-                            .filter_map(|b| b.map(|v| v.len()))
+                            .map(|v| &self.bindings[*v])
+                            .filter_map(|b| b.as_ref().map(|v| v.len()))
                             .fold((0, 0), |acc, v| (acc.0 + 1, acc.1 + v));
                         if bound_sum > *b
                             || (bound_count == vset.len() && (bound_sum < *a || bound_sum > *b))
@@ -594,7 +697,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                                     1,
                                 );
                                 self.subexpr_pattern_stack.push((
-                                    sub_candidate,
+                                    sub_candidate.to_string(),
                                     PatternIndex {
                                         bound: 0..0,
                                         layer: 0,
@@ -635,18 +738,6 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
 
                         matching_ranges.push(f_ranges);
                     }
-
-                    // if variable_len.len() == 0 {
-                    //     self.nested_constraints_execute(
-                    //         &candidate[remainder_start..remainder_end],
-                    //         pattern_idx.index(if anchored_left {
-                    //             1..pattern_len
-                    //         } else {
-                    //             0..pattern_len - 1
-                    //         }),
-                    //     );
-                    //     continue 'streaks;
-                    // }
 
                     if !open {
                         for i in 0..sub_candidate.len() {
@@ -721,7 +812,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
     pub fn execute<T>(
         &'c mut self,
         candidates: impl Iterator<Item = T>,
-        callback: &'b mut dyn FnMut(&Vec<&'a str>, &VariableMap<Option<&'a str>>) -> bool,
+        callback: &'b mut dyn FnMut(&Vec<&'a str>, &VariableMap<Option<String>>) -> bool,
     ) where
         T: std::ops::Deref<Target = &'a str>,
     {
@@ -748,10 +839,10 @@ pub fn q(query: &str, f: &js_sys::Function) -> usize {
         words: vec![],
         bindings: HashMap::default(),
     };
-    let mut cb = |a: &Vec<&str>, b: &VariableMap<Option<&str>>| {
+    let mut cb = |a: &Vec<&str>, b: &VariableMap<Option<String>>| {
         let words = a.iter().map(|v| v.to_string()).collect_vec();
         let bindings = ('A'..'Z')
-            .filter_map(|v| b[v].map(|binding| (v, binding.to_string())))
+            .filter_map(|v| b[v].as_ref().map(|binding| (v, binding.to_string())))
             .collect();
         let result = JsResult { words, bindings };
 
@@ -763,6 +854,30 @@ pub fn q(query: &str, f: &js_sys::Function) -> usize {
             let _result = f.call1(&this, &x);
         }
         true
+    };
+
+    parser::parser_exec(&query).execute(WORDS.iter(), &mut cb);
+
+    count
+}
+
+pub fn q_internal(query: &str, max_results: usize) -> usize {
+    let mut count = 0;
+    let mut last_val = JsResult {
+        words: vec![],
+        bindings: HashMap::default(),
+    };
+    let mut cb = |a: &Vec<&str>, b: &VariableMap<Option<String>>| {
+        let words = a.iter().map(|v| v.to_string()).collect_vec();
+        let bindings = ('A'..'Z')
+            .filter_map(|v| b[v].as_ref().map(|binding| (v, binding.to_string())))
+            .collect();
+        let result = JsResult { words, bindings };
+        if result != last_val {
+            last_val = result.clone();
+            count += 1;
+        }
+        count < max_results
     };
 
     parser::parser_exec(&query).execute(WORDS.iter(), &mut cb);
