@@ -118,9 +118,7 @@ fn length_range(
         DrawnFromAnagram(v) => v
             .iter()
             .map(|i| length_range(i, bindings, spec))
-            .fold((0, 0), |acc, v| {
-                (0, acc.1 + v.1)
-            }),
+            .fold((0, 0), |acc, v| (0, acc.1 + v.1)),
         &Variable(v) => {
             if let Some(b) = &bindings[v] {
                 (b.len(), b.len())
@@ -165,12 +163,17 @@ struct PatternIndex {
     layer: usize,
     path: Vec<(usize, Branch)>, // TODO decide on smallvec strategy
     bound: Range<usize>,
-    length_range: (usize, usize)
+    length_range: (usize, usize),
 }
 
-impl Default for PatternIndex{
+impl Default for PatternIndex {
     fn default() -> Self {
-        Self { layer: Default::default(), path: Default::default(), bound: Default::default(), length_range: (0, 255) }
+        Self {
+            layer: Default::default(),
+            path: Default::default(),
+            bound: Default::default(),
+            length_range: (0, 255),
+        }
     }
 }
 
@@ -181,7 +184,7 @@ impl PatternIndex {
             path: self.path.clone(),
             bound: self.bound.start + index.start
                 ..(self.bound.start + index.end).min(self.bound.end),
-            length_range: (0, 255)
+            length_range: (0, 255),
         }
     }
 
@@ -195,7 +198,7 @@ impl PatternIndex {
                 .chain(std::iter::once((self.bound.start + index, branch)))
                 .collect(),
             bound: 0..len,
-            length_range: (0, 255)
+            length_range: (0, 255),
         }
     }
 }
@@ -224,14 +227,14 @@ impl<'a, 'b> Index<&PatternIndex> for ExecutionContext<'a, 'b> {
                 Conjunction((ref l, ref r)) | Disjunction((ref l, ref r)) => match direction {
                     Branch::Left => &l[..],
                     Branch::Right => &r[..],
-                    _ => panic!("Invalid branch direction"),
+                    _ => unreachable!("Invalid branch direction"),
                 },
                 Subpattern(ref l) | Reverse(ref l) | Negate(ref l) => &l[..],
                 Anagram(_, ref v) | DrawnFromAnagram(ref v) => match direction {
                     Branch::AnagramIndex(idx) => &v[*idx..*idx + 1],
-                    _ => panic!("Invalid branch direction"),
+                    _ => unreachable!("Invalid branch direction"),
                 },
-                _ => panic!("Invalid path {:?} in PatternIndex", acc[*i]),
+                _ => unreachable!("Invalid path {:?} in PatternIndex", acc[*i]),
             },
         )[index.bound.clone()]
     }
@@ -394,7 +397,9 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
         }
 
         let pattern_range_constraint = pattern_idx.length_range;
-        if candidate.len() < pattern_range_constraint.0 || candidate.len() > pattern_range_constraint.1 {
+        if candidate.len() < pattern_range_constraint.0
+            || candidate.len() > pattern_range_constraint.1
+        {
             return;
         }
 
@@ -692,42 +697,73 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     self.bindings[v] = reset_var;
                 }
                 DrawnFromAnagram(fodder) => {
-                    let mut covers: Vec<(usize, (usize, usize))> = Vec::with_capacity(fodder.len());
                     let fodder = fodder.clone();
                     let sub_candidate = &candidate[streak_start..streak_end];
-                    for (i, f) in fodder.into_iter().enumerate() {
-                        let mut f_covers = vec![];
-                        let (a, b) = length_range(&f, &self.bindings, &self.spec_var_length);
-                        for c_start in 0..=(sub_candidate.len().saturating_sub(a)) {
-                            for c_len in a..=b.min(sub_candidate.len().saturating_sub(c_start)) {
-                                let next_pattern_idx = pattern_idx.step_in(
-                                    constraint_index,
-                                    Branch::AnagramIndex(i),
-                                    1,
-                                );
-                                self.subexpr_pattern_stack.push((
-                                    sub_candidate.to_string(),
-                                    PatternIndex::default(),
-                                    Some(0),
-                                ));
-                                self.nested_constraints_execute(
-                                    &sub_candidate[c_start..c_start + c_len],
-                                    next_pattern_idx,
-                                );
-                                if let (_, _, Some(found)) =
-                                    self.subexpr_pattern_stack.pop().unwrap()
-                                {
-                                    if found > 0 {
-                                        f_covers.push((c_start, c_start + c_len))
-                                    }
+
+                    if fodder.iter().all(|f| match f {
+                        Literal(_) => true,
+                        _ => false,
+                    }) {
+                        let needs = sub_candidate.chars().collect_vec();
+                        let mut chars = fodder
+                            .iter()
+                            .map(|f| match f {
+                                Literal(c) => c,
+                                _ => unreachable!(),
+                            })
+                            .collect_vec();
+                        for n in needs.iter() {
+                            match chars.iter().position(|c| *c == n) {
+                                Some(u) => {
+                                    chars.remove(u);
+                                }
+                                None => {
+                                    continue 'streaks;
                                 }
                             }
                         }
+                    } else {
+                        let mut covers: Vec<(usize, (usize, usize))> =
+                            Vec::with_capacity(fodder.len());
+                        let mut f_covers = vec![]; //Vec::with_capacity(fodder.len() * )
+                        for (i, f) in fodder.into_iter().enumerate() {
+                            f_covers.clear();
+                            let (a, b) = length_range(&f, &self.bindings, &self.spec_var_length);
+                            for c_start in 0..=(sub_candidate.len().saturating_sub(a)) {
+                                for c_len in a..=b.min(sub_candidate.len().saturating_sub(c_start))
+                                {
+                                    let next_pattern_idx = pattern_idx.step_in(
+                                        constraint_index,
+                                        Branch::AnagramIndex(i),
+                                        1,
+                                    );
+                                    self.subexpr_pattern_stack.push((
+                                        sub_candidate.to_string(),
+                                        PatternIndex::default(),
+                                        Some(0),
+                                    ));
+                                    self.nested_constraints_execute(
+                                        &sub_candidate[c_start..c_start + c_len],
+                                        next_pattern_idx,
+                                    );
+                                    if let (_, _, Some(found)) =
+                                        self.subexpr_pattern_stack.pop().unwrap()
+                                    {
+                                        if found > 0 {
+                                            f_covers.push((c_start, c_start + c_len))
+                                        }
+                                    }
+                                }
+                            }
 
-                        covers.extend(f_covers.into_iter().map(|r| (i, r)));
+                            covers.extend(f_covers.iter().map(|r| (i, *r)));
+                        }
+                        let works =
+                            constraint_solver::evaluate_covers(&covers, sub_candidate.len());
+                        if !works {
+                            continue 'streaks;
+                        }
                     }
-                    let works = constraint_solver::evaluate_covers(&covers, sub_candidate.len());
-                    if works {
                         self.nested_constraints_execute(
                             &candidate[remainder_start..remainder_end],
                             pattern_idx.index(if anchored_left {
@@ -736,7 +772,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                                 0..pattern_len - 1
                             }),
                         );
-                    }
+
                 }
                 Anagram(open, fodder) => {
                     let open = *open; // shadow bindings to &self so we can recurse in this block
@@ -860,7 +896,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     layer: pattern_depth,
                     path: vec![],
                     bound: 0..self.patterns[pattern_depth].1.len(),
-                    length_range: self.patterns[pattern_depth].0
+                    length_range: self.patterns[pattern_depth].0,
                 },
             );
             self.candidate_stack.pop();
@@ -918,8 +954,8 @@ pub fn q(query: &str, f: &js_sys::Function) -> usize {
                 Ok(v) => match v.as_bool() {
                     None => true,
                     Some(true) => true,
-                    Some(false) => false
-                }
+                    Some(false) => false,
+                },
             };
         }
         true

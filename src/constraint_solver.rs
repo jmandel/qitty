@@ -11,8 +11,9 @@ fn propagate(constraints: &Vec<Option<Vec<(CoverGroup, CoverSpan)>>>) -> bool {
 
     let most_constrained = constraints
         .iter()
-        .filter_map(|c| c.as_ref())
-        .min_by_key(|c| c.len())
+        .min_by_key(|c| c.as_ref().map(|v| v.len()).unwrap_or(255))
+        .unwrap()
+        .as_ref()
         .unwrap();
 
     if most_constrained.len() == 0 {
@@ -32,7 +33,7 @@ fn propagate(constraints: &Vec<Option<Vec<(CoverGroup, CoverSpan)>>>) -> bool {
                         Some(
                             vs.iter()
                                 .filter(|(vtag, vrange)| {
-                                    vtag != cover_group
+                                    *vtag != *cover_group
                                         && !(vrange.1 > cover_span.0 && vrange.0 < cover_span.1)
                                 })
                                 .copied()
@@ -41,7 +42,7 @@ fn propagate(constraints: &Vec<Option<Vec<(CoverGroup, CoverSpan)>>>) -> bool {
                     }
                 }
             })
-            .collect();
+            .collect_vec();
         if propagate(&next_constraints) {
             return true;
         }
@@ -77,7 +78,7 @@ fn propagate_test() {
         (103, (5, 7)),
     ];
 
-        let t0 = SystemTime::now();
-        println!("Prop: {}", evaluate_covers(&covers, 7));
-        println!("{:?}", t0.elapsed());
+    let t0 = SystemTime::now();
+    println!("Prop: {}", evaluate_covers(&covers, 7));
+    println!("{:?}", t0.elapsed());
 }
