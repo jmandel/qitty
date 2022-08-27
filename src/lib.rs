@@ -115,6 +115,12 @@ fn length_range(
             .fold((0, if *open { 255 } else { 0 }), |acc, v| {
                 (acc.0 + v.0, acc.1 + v.1)
             }),
+        DrawnFromAnagram(v) => v
+            .iter()
+            .map(|i| length_range(i, bindings, spec))
+            .fold((0, 0), |acc, v| {
+                (0, acc.1 + v.1)
+            }),
         &Variable(v) => {
             if let Some(b) = &bindings[v] {
                 (b.len(), b.len())
@@ -142,7 +148,7 @@ fn length_range(
             }
         }
         Word(_dir) => (2, 255),
-        Star | Negate(_) | DrawnFromAnagram(_) => (0, 255),
+        Star | Negate(_) => (0, 255),
     }
 }
 
