@@ -9,40 +9,26 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{digit1, one_of},
-    combinator::{map, opt, value},
+    combinator::{map, map_res, opt, value},
     multi::{fold_many0, many1, many_m_n, separated_list1},
-    sequence::{delimited, pair, preceded, tuple},
+    sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
     IResult,
 };
 
 #[derive(Clone, Debug)]
 enum QueryTerm {
-    QueryTermConstraints(Vec<Constraint>),
+    QueryTermConstraints((usize, usize), Constraint),
     QueryTermVariableLength(char, usize, Option<usize>),
     QueryTermVariablesInequality(Vec<char>),
     QueryTermVariableSetsLength(Vec<char>, usize, Option<usize>),
 }
 
-fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
-    let (input, reversal) = opt(tag("~"))(input)?;
-    let (input, mut items) = alt((
-        map(
-            tuple((tag("/*"), many1(production_pattern_item))),
-            |(_, avec)| {
-                vec![Anagram(
-                    true,
-                    avec.into_iter().flat_map(|v| v.into_iter()).collect(),
-                )]
-            },
-        ),
-        map(
-            tuple((tag("/"), many1(production_pattern_item))),
-            |(_, avec)| {
-                vec![Anagram(
-                    false,
-                    avec.into_iter().flat_map(|v| v.into_iter()).collect(),
-                )]
-            },
+fn parse_qat_element(input: &str) -> IResult<&str, Constraint> {
+    Ok(alt((
+        map(one_of("abcdefghijklmnopqrstuvwxyz"), |c| Literal(c)),
+        value(
+            LiteralFrom("abcdefghijklmnopqrstuvwxyz".chars().collect()),
+            tag("."),
         ),
         map(
             delimited(
@@ -71,36 +57,216 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
             ),
             |(negated, charsets)| {
                 let chars = charsets.into_iter().flatten().collect_vec();
-                vec![LiteralFrom(match negated {
+                LiteralFrom(match negated {
                     Some(_) => ALPHABET
                         .iter()
                         .filter(|l| !chars.contains(l))
                         .copied()
                         .collect(),
                     None => chars,
-                })]
+                })
             },
         ),
+        value(LiteralFrom("aeiou".chars().collect()), tag("@")),
         value(
-            vec![LiteralFrom("abcdefghijklmnopqrstuvwxyz".chars().collect())],
-            tag("."),
-        ),
-        value(vec![LiteralFrom("aeiou".chars().collect())], tag("@")),
-        // TODO add back support for >1 `*` across patterns, with a dedicated NonceVariable or `_` indicator or something
-        value(vec![Star], tag("*")),
-        value(vec![Word(WordDirection::Forwards)], tag(">")),
-        value(vec![Word(WordDirection::Backwards)], tag("<")),
-        value(
-            vec![LiteralFrom("bcdfghjklmnpqrstvwxyz".chars().collect())],
+            LiteralFrom("bcdfghjklmnpqrstvwxyz".chars().collect()),
             tag("#"),
         ),
-        map(one_of("abcdefghijklmnopqrstuvwxyz"), |c| vec![Literal(c)]),
+        value(Star, tag("*")),
+        value(Word(WordDirection::Forwards), tag(">")),
+        value(Word(WordDirection::Backwards), tag("<")),
+        // A digit from 0 to 9 matches any letter, the same one throughout the pattern. Different digits match different letters.
+        map(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), |c| Variable(c)),
+        delimited(tag("("), parse_qat_compound_pattern, tag(")")),
+    ))(input)?)
+}
+
+enum QatSimplePattern {
+    SequenceOnly(Vec<Constraint>),
+    AnagramOnly(Vec<Constraint>),
+    SequenceAndAnagram(Vec<Constraint>, Vec<Constraint>),
+}
+
+fn parse_qat_simple_pattern(input: &str) -> IResult<&str, Constraint> {
+    let (input, result) = alt((
+        map(
+            tuple((
+                many1(parse_qat_element),
+                preceded(tag("/"), many1(parse_qat_element)),
+            )),
+            |(seq, ana)| Conjunction((seq, vec![Anagram(false, ana)])), // TODO add anagram letterbank flag
+        ),
+        map(many1(parse_qat_element), |seq| {
+            if seq.len() == 1 {
+                seq[0].clone()
+            } else {
+                Subpattern(seq)
+            }
+        }),
+        map(preceded(tag("/"), many1(parse_qat_element)), |ana| {
+            Anagram(false, ana)
+        }),
+        map(preceded(tag("/*"), many1(parse_qat_element)), |ana| {
+            Anagram(true, ana)
+        }),
+    ))(input)?;
+    Ok((input, result))
+}
+
+fn parse_qat_compound_pattern_precedence_3(input: &str) -> IResult<&str, Constraint> {
+    let (input, item) = map(
+        tuple((opt(tag("~")), parse_qat_simple_pattern)),
+        |(reversed, item)| {
+            if reversed.is_some() {
+                Reverse(match item {
+                    Subpattern(vs) => vs,
+                    _ => vec![item],
+                })
+            } else {
+                item
+            }
+        },
+    )(input)?;
+    Ok((input, item))
+}
+
+fn parse_qat_compound_pattern_precedence_2(input: &str) -> IResult<&str, Constraint> {
+    let (input, item) = map(
+        tuple((opt(tag("!")), parse_qat_compound_pattern_precedence_3)),
+        |(negated, item)| {
+            if negated.is_some() {
+                Negate(match item {
+                    Subpattern(vs) => vs,
+                    _ => vec![item],
+                })
+            } else {
+                item
+            }
+        },
+    )(input)?;
+    Ok((input, item))
+}
+
+fn parse_qat_compound_pattern_precedence_1(input: &str) -> IResult<&str, Constraint> {
+    let (input, t1) = parse_qat_compound_pattern_precedence_2(input)?;
+    let (input, items) = fold_many0(
+        preceded(tag("&"), parse_qat_compound_pattern_precedence_2),
+        || t1.clone(),
+        |acc, vs| {
+            Conjunction((
+                match acc {
+                    Subpattern(items) => items,
+                    _ => vec![acc],
+                },
+                match vs {
+                    Subpattern(items) => items,
+                    _ => vec![vs],
+                },
+            ))
+        },
+    )(input)?;
+
+    Ok((input, items))
+}
+
+fn parse_qat_length_qualifier(input: &str) -> IResult<&str, (usize, usize)> {
+    let (input, length_qualifier) = opt(alt((
+        map(
+            terminated(map_res(digit1, |s: &str| s.parse::<usize>()), tag(":")),
+            |v| (v, v),
+        ),
+        map(
+            delimited(
+                tag("-"),
+                map_res(digit1, |s: &str| s.parse::<usize>()),
+                tag(":"),
+            ),
+            |v| (0, v),
+        ),
+        map(
+            terminated(map_res(digit1, |s: &str| s.parse::<usize>()), tag("-:")),
+            |v| (v, 255),
+        ),
+        map(
+            terminated(
+                separated_pair(
+                    map_res(digit1, |s: &str| s.parse::<usize>()),
+                    tag("-"),
+                    map_res(digit1, |s: &str| s.parse::<usize>()),
+                ),
+                tag(":"),
+            ),
+            |(a, b)| (a, b),
+        ),
+    )))(input)?;
+
+    Ok((input, length_qualifier.unwrap_or((0, 255))))
+}
+
+fn parse_qat_compound_pattern(input: &str) -> IResult<&str, Constraint> {
+    let (input, misprint_qualifier) = opt(alt((tag("`"), tag("?`"))))(input)?;
+
+    let (input, mut t1) = parse_qat_compound_pattern_precedence_1(input)?;
+    let (input, mut item) = fold_many0(
+        preceded(tag("|"), parse_qat_compound_pattern_precedence_1),
+        || t1.clone(),
+        |acc, vs| {
+            Disjunction((
+                match acc {
+                    Subpattern(items) => items,
+                    _ => vec![acc],
+                },
+                match vs {
+                    Subpattern(items) => items,
+                    _ => vec![vs],
+                },
+            ))
+        },
+    )(input)?;
+
+    item = match misprint_qualifier {
+        None => item,
+        Some(q) => misprint(
+            item,
+            match q {
+                "?`" => MisprintSetting::OptionalMisprint,
+                "`" => MisprintSetting::Misprint,
+                _ => panic!(),
+            },
+        ),
+    };
+
+    Ok((input, item))
+}
+
+use std::{env, time::SystemTime};
+#[test]
+fn qatcp() {
+    let parg: String = env::args().last().unwrap();
+    let r = parse_qat_compound_pattern(&parg);
+    println!("Parsed to {:?}", r);
+}
+
+fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
+    let (input, reversal) = opt(tag("~"))(input)?;
+    let (input, mut items) = alt((
         map(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), |c| vec![Variable(c)]),
         map(
-            delimited(tag("("), production_patttern_term, tag(")")),
-            |o| match o {
-                QueryTerm::QueryTermConstraints(p) => vec![Subpattern(p)],
-                _ => panic!("Parenthetical terms can only be patterns"),
+            tuple((tag("/*"), many1(production_pattern_item))),
+            |(_, avec)| {
+                vec![Anagram(
+                    true,
+                    avec.into_iter().flat_map(|v| v.into_iter()).collect(),
+                )]
+            },
+        ),
+        map(
+            tuple((tag("/"), many1(production_pattern_item))),
+            |(_, avec)| {
+                vec![Anagram(
+                    false,
+                    avec.into_iter().flat_map(|v| v.into_iter()).collect(),
+                )]
             },
         ),
     ))(input)?;
@@ -114,12 +280,12 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
 }
 
 #[derive(Copy, Clone)]
-enum BongeSetting {
+enum MisprintSetting {
     Misprint,
     OptionalMisprint,
 }
 
-fn bonge(constraint: Constraint, optional: BongeSetting) -> Constraint {
+fn misprint(constraint: Constraint, optional: MisprintSetting) -> Constraint {
     match constraint {
         Literal(c) => LiteralFrom(ALPHABET.iter().filter(|l| **l != c).copied().collect()),
         LiteralFrom(cs) => LiteralFrom(
@@ -130,12 +296,12 @@ fn bonge(constraint: Constraint, optional: BongeSetting) -> Constraint {
                 .collect(),
         ),
         Disjunction((a, b)) => {
-            let mut abonged = bonge(Subpattern(a), optional);
+            let mut abonged = misprint(Subpattern(a), optional);
             abonged = match abonged {
                 Subpattern(ab) if ab.len() == 1 => ab[0].clone(),
                 _ => abonged,
             };
-            let mut bbonged = bonge(Subpattern(b), optional);
+            let mut bbonged = misprint(Subpattern(b), optional);
             bbonged = match bbonged {
                 Subpattern(bb) if bb.len() == 1 => bb[0].clone(),
                 _ => bbonged,
@@ -144,14 +310,14 @@ fn bonge(constraint: Constraint, optional: BongeSetting) -> Constraint {
             Disjunction((vec![abonged], vec![bbonged]))
         }
         Conjunction((a, b)) => {
-            let a = bonge(Subpattern(a), optional);
-            let b = bonge(Subpattern(b), optional);
+            let a = misprint(Subpattern(a), optional);
+            let b = misprint(Subpattern(b), optional);
             Conjunction((vec![a], vec![b]))
         }
-        Negate(vs) => Negate(vec![bonge(Subpattern(vs), optional)]),
-        Reverse(vs) => Reverse(vec![bonge(Subpattern(vs), optional)]),
+        Negate(vs) => Negate(vec![misprint(Subpattern(vs), optional)]),
+        Reverse(vs) => Reverse(vec![misprint(Subpattern(vs), optional)]),
         Subpattern(vs) => {
-            let mut init = Subpattern(if let BongeSetting::OptionalMisprint = optional {
+            let mut init = Subpattern(if let MisprintSetting::OptionalMisprint = optional {
                 vs.clone()
             } else {
                 vec![]
@@ -164,7 +330,7 @@ fn bonge(constraint: Constraint, optional: BongeSetting) -> Constraint {
                 .enumerate()
                 .fold(init, |acc: Constraint, (i, c): (usize, &Constraint)| {
                     let mut bonged_clause = vs.clone();
-                    bonged_clause[i] = bonge(c.clone(), optional);
+                    bonged_clause[i] = misprint(c.clone(), optional);
                     Disjunction((vec![acc], bonged_clause))
                 })
         }
@@ -233,56 +399,14 @@ fn production_vardifferent_constraint(input: &str) -> IResult<&str, QueryTerm> {
     Ok((input, QueryTerm::QueryTermVariablesInequality(varnames)))
 }
 
-fn production_pattern_clause(input: &str) -> IResult<&str, Vec<Constraint>> {
-    let (input, clause) = tuple((opt(tag("!")), many1(production_pattern_item)))(input)?;
-    let clause = if clause.0.is_some() {
-        vec![Negate(clause.1.into_iter().flatten().collect())]
-    } else {
-        clause.1.into_iter().flatten().collect()
-    };
-    Ok((input, clause))
-}
-
-fn production_patttern_term(input: &str) -> IResult<&str, QueryTerm> {
-    let (input, qualifier) = opt(alt((tag("`"), tag("?`"))))(input)?;
-
-    let (input, t1) = production_pattern_clause(input)?;
-
-    let (input, mut items) = fold_many0(
-        pair(alt((tag("&"), tag("|"))), production_pattern_clause),
-        || t1.clone(),
-        |acc, b| {
-            if b.0 == "&" {
-                vec![Conjunction((acc, b.1))]
-            } else {
-                vec![Disjunction((acc, b.1))]
-            }
-        },
-    )(input)?;
-
-    items = match qualifier {
-        None => items,
-        Some(q) => match bonge(
-            Subpattern(items),
-            match q {
-                "?`" => BongeSetting::OptionalMisprint,
-                "`" => BongeSetting::Misprint,
-                _ => panic!(),
-            },
-        ) {
-            Subpattern(vs) => vs,
-            c => vec![c],
-        },
-    };
-
-    Ok((input, QueryTerm::QueryTermConstraints(items)))
-}
-
 fn parse_query_terms(input: &str) -> Vec<QueryTerm> {
     separated_list1(
         tag(";"),
         alt((
-            production_patttern_term,
+            map(
+                tuple((parse_qat_length_qualifier, parse_qat_compound_pattern)),
+                |(l, p)| QueryTerm::QueryTermConstraints(l, p),
+            ),
             production_varsingle_length_constraint,
             production_variables_length_constraint,
             production_vardifferent_constraint,
@@ -291,13 +415,14 @@ fn parse_query_terms(input: &str) -> Vec<QueryTerm> {
     .unwrap()
     .1
 }
+
 pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
     let query_terms = parse_query_terms(&q);
 
     let patterns = query_terms
         .iter()
         .filter_map(|t| match t {
-            QueryTerm::QueryTermConstraints(p) => Some(p.clone()),
+            QueryTerm::QueryTermConstraints(l, p) => Some((l.clone(), p.clone())),
             _ => None,
         })
         .collect_vec();
@@ -323,13 +448,13 @@ pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
             Star | Word(_) | Literal(_) | LiteralFrom(_) => vec![],
         }
     }
-    let variables_mentioned = patterns
-        .iter()
-        .flat_map(|i| i.iter().flat_map(|c| mention(c)))
-        .fold(VariableMap::<(usize, usize)>::default(), |mut vm, v| {
+    let variables_mentioned = patterns.iter().flat_map(|i| mention(&i.1)).fold(
+        VariableMap::<(usize, usize)>::default(),
+        |mut vm, v| {
             vm[v] = (1, 255);
             vm
-        });
+        },
+    );
 
     let variables_constrained =
         variable_length
@@ -358,7 +483,10 @@ pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
         .collect_vec();
 
     ExecutionContext::new(
-        patterns,
+        patterns.into_iter().map(|(l, p)|match p {
+            Subpattern(vs) => (l, vs),
+            v => (l, vec![v])
+        }).collect(),
         variables_constrained,
         variable_inquality,
         variable_sets_length,

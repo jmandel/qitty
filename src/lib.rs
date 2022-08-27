@@ -187,7 +187,7 @@ pub struct ExecutionContext<'a, 'b> {
     candidate_stack: Vec<&'a str>,
     candidate_stack_goal: usize,
     bindings: VariableMap<Option<String>>,
-    patterns: Vec<Vec<Constraint>>,
+    patterns: Vec<ConstrainedPattern>,
     spec_var_length: VariableMap<(usize, usize)>,
     spec_var_inequality: Vec<Vec<char>>,
     spec_var_sets_length: Vec<(Vec<char>, usize, usize)>,
@@ -202,7 +202,7 @@ impl<'a, 'b> Index<&PatternIndex> for ExecutionContext<'a, 'b> {
     type Output = [Constraint];
     fn index(&self, index: &PatternIndex) -> &Self::Output {
         &index.path.iter().fold(
-            &self.patterns[index.layer][..],
+            &self.patterns[index.layer].1[..],
             |acc, (i, direction)| match acc[*i] {
                 Conjunction((ref l, ref r)) | Disjunction((ref l, ref r)) => match direction {
                     Branch::Left => &l[..],
@@ -219,10 +219,10 @@ impl<'a, 'b> Index<&PatternIndex> for ExecutionContext<'a, 'b> {
         )[index.bound.clone()]
     }
 }
-
+type ConstrainedPattern = ((usize, usize), Vec<Constraint>);
 impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
     fn new(
-        patterns: Vec<Vec<Constraint>>,
+        patterns: Vec<ConstrainedPattern>,
         spec_var_length: VariableMap<(usize, usize)>,
         spec_var_inequality: Vec<Vec<char>>,
         spec_var_sets_length: Vec<(Vec<char>, usize, usize)>,
@@ -255,7 +255,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
         let mut in_streak = true;
         let mut probe = "".to_string();
         let mut probes: Vec<String> = vec![];
-        for c in next_pattern {
+        for c in &next_pattern.1 {
             let now_in_streak = match c {
                 Literal(_) | Variable(_) | Reverse(_) => true,
                 _ => false,
@@ -799,7 +799,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                 PatternIndex {
                     layer: pattern_depth,
                     path: vec![],
-                    bound: 0..self.patterns[pattern_depth].len(),
+                    bound: 0..self.patterns[pattern_depth].1.len(),
                 },
             );
             self.candidate_stack.pop();
