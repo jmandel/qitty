@@ -81,12 +81,6 @@ fn parse_qat_element(input: &str) -> IResult<&str, Constraint> {
     ))(input)?)
 }
 
-enum QatSimplePattern {
-    SequenceOnly(Vec<Constraint>),
-    AnagramOnly(Vec<Constraint>),
-    SequenceAndAnagram(Vec<Constraint>, Vec<Constraint>),
-}
-
 fn parse_qat_simple_pattern(input: &str) -> IResult<&str, Constraint> {
     let (input, result) = alt((
         map(
@@ -94,7 +88,7 @@ fn parse_qat_simple_pattern(input: &str) -> IResult<&str, Constraint> {
                 many1(parse_qat_element),
                 preceded(tag("/"), many1(parse_qat_element)),
             )),
-            |(seq, ana)| Conjunction((seq, vec![Anagram(false, ana)])), // TODO add anagram letterbank flag
+            |(seq, ana)| Conjunction((vec![DrawnFromAnagram(ana)], seq)), // TODO add anagram letterbank flag
         ),
         map(many1(parse_qat_element), |seq| {
             if seq.len() == 1 {
@@ -247,6 +241,7 @@ fn qatcp() {
     println!("Parsed to {:?}", r);
 }
 
+
 fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
     let (input, reversal) = opt(tag("~"))(input)?;
     let (input, mut items) = alt((
@@ -334,7 +329,7 @@ fn misprint(constraint: Constraint, optional: MisprintSetting) -> Constraint {
                     Disjunction((vec![acc], bonged_clause))
                 })
         }
-        Anagram(_, _) | Star | Word(_) | Variable(_) => constraint,
+        DrawnFromAnagram(_) | Anagram(_, _) | Star | Word(_) | Variable(_) => constraint,
     }
 }
 
@@ -442,7 +437,7 @@ pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
                 .iter()
                 .flat_map(|cs| cs.iter().flat_map(|c| mention(c).into_iter()))
                 .collect(),
-            Subpattern(v) | Anagram(_, v) | Negate(v) | Reverse(v) => {
+            Subpattern(v) | Anagram(_, v) | DrawnFromAnagram(v) | Negate(v) | Reverse(v) => {
                 v.iter().flat_map(|c| mention(c)).collect()
             }
             Star | Word(_) | Literal(_) | LiteralFrom(_) => vec![],
@@ -483,10 +478,13 @@ pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
         .collect_vec();
 
     ExecutionContext::new(
-        patterns.into_iter().map(|(l, p)|match p {
-            Subpattern(vs) => (l, vs),
-            v => (l, vec![v])
-        }).collect(),
+        patterns
+            .into_iter()
+            .map(|(l, p)| match p {
+                Subpattern(vs) => (l, vs),
+                v => (l, vec![v]),
+            })
+            .collect(),
         variables_constrained,
         variable_inquality,
         variable_sets_length,

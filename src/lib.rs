@@ -1,6 +1,7 @@
 use dict::{SUBSTRINGS, WORDS};
 use wasm_bindgen::prelude::*;
 
+pub mod constraint_solver;
 pub mod dict;
 pub mod examples;
 pub mod parser;
@@ -28,6 +29,7 @@ pub enum Constraint {
     Literal(char),
     LiteralFrom(Vec<char>),
     Anagram(bool, Vec<Constraint>),
+    DrawnFromAnagram(Vec<Constraint>),
     Variable(char),
     Disjunction((Vec<Constraint>, Vec<Constraint>)),
     Conjunction((Vec<Constraint>, Vec<Constraint>)),
@@ -140,7 +142,7 @@ fn length_range(
             }
         }
         Word(_dir) => (2, 255),
-        Star | Negate(_) => (0, 255),
+        Star | Negate(_) | DrawnFromAnagram(_) => (0, 255),
     }
 }
 
@@ -210,7 +212,7 @@ impl<'a, 'b> Index<&PatternIndex> for ExecutionContext<'a, 'b> {
                     _ => panic!("Invalid branch direction"),
                 },
                 Subpattern(ref l) | Reverse(ref l) | Negate(ref l) => &l[..],
-                Anagram(_open, ref v) => match direction {
+                Anagram(_, ref v) | DrawnFromAnagram(ref v) => match direction {
                     Branch::AnagramIndex(idx) => &v[*idx..*idx + 1],
                     _ => panic!("Invalid branch direction"),
                 },
@@ -673,6 +675,57 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     );
 
                     self.bindings[v] = reset_var;
+                }
+                DrawnFromAnagram(fodder) => {
+                    let mut covers: Vec<(usize, (usize, usize))> = Vec::with_capacity(fodder.len());
+                    let fodder = fodder.clone();
+                    let sub_candidate = &candidate[streak_start..streak_end];
+                    for (i, f) in fodder.into_iter().enumerate() {
+                        let mut f_covers = vec![];
+                        let (a, b) = length_range(&f, &self.bindings, &self.spec_var_length);
+                        for c_start in 0..=(sub_candidate.len().saturating_sub(a)) {
+                            for c_len in a..=b.min(sub_candidate.len().saturating_sub(c_start)) {
+                                let next_pattern_idx = pattern_idx.step_in(
+                                    constraint_index,
+                                    Branch::AnagramIndex(i),
+                                    1,
+                                );
+                                self.subexpr_pattern_stack.push((
+                                    sub_candidate.to_string(),
+                                    PatternIndex {
+                                        bound: 0..0,
+                                        layer: 0,
+                                        path: vec![],
+                                    },
+                                    Some(0),
+                                ));
+                                self.nested_constraints_execute(
+                                    &sub_candidate[c_start..c_start + c_len],
+                                    next_pattern_idx,
+                                );
+                                if let (_, _, Some(found)) =
+                                    self.subexpr_pattern_stack.pop().unwrap()
+                                {
+                                    if found > 0 {
+                                        f_covers.push((c_start, c_start + c_len))
+                                    }
+                                }
+                            }
+                        }
+
+                        covers.extend(f_covers.into_iter().map(|r| (i, r)));
+                    }
+                    let works = constraint_solver::evaluate_covers(&covers, sub_candidate.len());
+                    if works {
+                        self.nested_constraints_execute(
+                            &candidate[remainder_start..remainder_end],
+                            pattern_idx.index(if anchored_left {
+                                1..pattern_len
+                            } else {
+                                0..pattern_len - 1
+                            }),
+                        );
+                    }
                 }
                 Anagram(open, fodder) => {
                     let open = *open; // shadow bindings to &self so we can recurse in this block
