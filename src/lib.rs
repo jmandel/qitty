@@ -159,6 +159,13 @@ struct PatternIndex {
     layer: usize,
     path: Vec<(usize, Branch)>, // TODO decide on smallvec strategy
     bound: Range<usize>,
+    length_range: (usize, usize)
+}
+
+impl Default for PatternIndex{
+    fn default() -> Self {
+        Self { layer: Default::default(), path: Default::default(), bound: Default::default(), length_range: (0, 255) }
+    }
 }
 
 impl PatternIndex {
@@ -168,6 +175,7 @@ impl PatternIndex {
             path: self.path.clone(),
             bound: self.bound.start + index.start
                 ..(self.bound.start + index.end).min(self.bound.end),
+            length_range: (0, 255)
         }
     }
 
@@ -181,6 +189,7 @@ impl PatternIndex {
                 .chain(std::iter::once((self.bound.start + index, branch)))
                 .collect(),
             bound: 0..len,
+            length_range: (0, 255)
         }
     }
 }
@@ -359,7 +368,6 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
         }
 
         if candidate.len() == 0 && pattern_len == 0 && self.subexpr_pattern_stack.len() > 0 {
-            // println!("Succese D{:?}", self.subexpr_pattern_stack);
             let (next_candidate, next_pattern, mut capped) =
                 self.subexpr_pattern_stack.pop().unwrap();
             if capped.is_none() {
@@ -376,6 +384,11 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
             if candidate.len() == 0 {
                 self.solve_equation();
             }
+            return;
+        }
+
+        let pattern_range_constraint = pattern_idx.length_range;
+        if candidate.len() < pattern_range_constraint.0 || candidate.len() > pattern_range_constraint.1 {
             return;
         }
 
@@ -475,11 +488,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                         pattern_idx.step_in(constraint_index, Branch::Straight, vs.len());
                     self.subexpr_pattern_stack.push((
                         "".to_string(),
-                        PatternIndex {
-                            bound: 0..0,
-                            layer: 0,
-                            path: vec![],
-                        },
+                        PatternIndex::default(),
                         Some(0),
                     ));
                     self.nested_constraints_execute(sub_candidate, next_pattern_idx);
@@ -692,11 +701,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                                 );
                                 self.subexpr_pattern_stack.push((
                                     sub_candidate.to_string(),
-                                    PatternIndex {
-                                        bound: 0..0,
-                                        layer: 0,
-                                        path: vec![],
-                                    },
+                                    PatternIndex::default(),
                                     Some(0),
                                 ));
                                 self.nested_constraints_execute(
@@ -751,11 +756,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                                 );
                                 self.subexpr_pattern_stack.push((
                                     sub_candidate.to_string(),
-                                    PatternIndex {
-                                        bound: 0..0,
-                                        layer: 0,
-                                        path: vec![],
-                                    },
+                                    PatternIndex::default(),
                                     Some(0),
                                 ));
                                 self.nested_constraints_execute(
@@ -853,6 +854,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                     layer: pattern_depth,
                     path: vec![],
                     bound: 0..self.patterns[pattern_depth].1.len(),
+                    length_range: self.patterns[pattern_depth].0
                 },
             );
             self.candidate_stack.pop();
