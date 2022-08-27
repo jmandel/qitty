@@ -414,7 +414,7 @@ fn parse_query_terms(input: &str) -> Vec<QueryTerm> {
 pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
     let query_terms = parse_query_terms(&q);
 
-    let patterns = query_terms
+    let mut patterns = query_terms
         .iter()
         .filter_map(|t| match t {
             QueryTerm::QueryTermConstraints(l, p) => Some((l.clone(), p.clone())),
@@ -443,6 +443,8 @@ pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
             Star | Word(_) | Literal(_) | LiteralFrom(_) => vec![],
         }
     }
+
+    patterns = patterns.into_iter().sorted_by_key(|p| -(mention(&p.1).len() as isize)).collect();
     let variables_mentioned = patterns.iter().flat_map(|i| mention(&i.1)).fold(
         VariableMap::<(usize, usize)>::default(),
         |mut vm, v| {
