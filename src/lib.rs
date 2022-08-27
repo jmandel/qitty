@@ -764,15 +764,14 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                             continue 'streaks;
                         }
                     }
-                        self.nested_constraints_execute(
-                            &candidate[remainder_start..remainder_end],
-                            pattern_idx.index(if anchored_left {
-                                1..pattern_len
-                            } else {
-                                0..pattern_len - 1
-                            }),
-                        );
-
+                    self.nested_constraints_execute(
+                        &candidate[remainder_start..remainder_end],
+                        pattern_idx.index(if anchored_left {
+                            1..pattern_len
+                        } else {
+                            0..pattern_len - 1
+                        }),
+                    );
                 }
                 Anagram(open, fodder) => {
                     let open = *open; // shadow bindings to &self so we can recurse in this block

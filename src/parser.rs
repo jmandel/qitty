@@ -84,7 +84,7 @@ fn parse_qat_element(input: &str) -> IResult<&str, Constraint> {
 
     item = match reversed {
         Some(_) => Reverse(vec![item]),
-        None=> item
+        None => item,
     };
     Ok((input, item))
 }
@@ -114,8 +114,6 @@ fn parse_qat_simple_pattern(input: &str) -> IResult<&str, Constraint> {
     ))(input)?;
     Ok((input, result))
 }
-
-
 
 fn parse_qat_compound_pattern_precedence_2(input: &str) -> IResult<&str, Constraint> {
     let (input, item) = map(
@@ -233,7 +231,6 @@ fn qatcp() {
     let r = parse_qat_compound_pattern(&parg);
     println!("Parsed to {:?}", r);
 }
-
 
 fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
     let (input, reversal) = opt(tag("~"))(input)?;
@@ -437,7 +434,10 @@ pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
         }
     }
 
-    patterns = patterns.into_iter().sorted_by_key(|p| -(mention(&p.1).len() as isize)).collect();
+    patterns = patterns
+        .into_iter()
+        .sorted_by_key(|p| -(mention(&p.1).len() as isize))
+        .collect();
     let variables_mentioned = patterns.iter().flat_map(|i| mention(&i.1)).fold(
         VariableMap::<(usize, usize)>::default(),
         |mut vm, v| {
