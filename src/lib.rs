@@ -904,7 +904,15 @@ pub fn q(query: &str, f: &js_sys::Function) -> usize {
             count += 1;
             let this = JsValue::null();
             let x = JsValue::from_serde(&result).unwrap();
-            let _result = f.call1(&this, &x);
+            let result = f.call1(&this, &x);
+            return match result {
+                Err(_) => false,
+                Ok(v) => match v.as_bool() {
+                    None => true,
+                    Some(true) => true,
+                    Some(false) => false
+                }
+            };
         }
         true
     };

@@ -15,8 +15,10 @@ init().then(() => {
 
 self.addEventListener("message", async (e) => {
   let q = e.data.q;
+  let limit = e.data.limit || Infinity;
   let complete = qopy(q, (result)=> {
     self.postMessage({result})
+    return --limit > 0
   });
   postMessage({ complete });
 });
