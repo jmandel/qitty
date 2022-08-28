@@ -46,6 +46,9 @@ use std::str;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VariableMap<T>(pub [T; 26]);
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
+pub struct CharCounter(pub [usize; 26]);
+
 impl Default for VariableMap<(usize, usize)> {
     fn default() -> Self {
         Self([
@@ -102,6 +105,53 @@ impl<T> IndexMut<char> for VariableMap<T> {
     }
 }
 
+impl Index<char> for CharCounter {
+    type Output = usize;
+    fn index(&self, index: char) -> &Self::Output {
+        self.0.get(index as usize - 97).unwrap()
+    }
+}
+
+impl IndexMut<char> for CharCounter {
+    fn index_mut(&mut self, index: char) -> &mut Self::Output {
+        self.0.get_mut(index as usize - 97).unwrap()
+    }
+}
+
+
+fn letters_possible_recurse(p: &Constraint, cc: &mut CharCounter) {
+    match p {
+        Literal(c)  => {cc[*c] += 1;}
+        LiteralFrom(vs) => {
+            for c in vs {
+                cc[*c] += 1;
+            }
+        }
+        Anagram(true, _) | Variable(_) | Word(_) | Star | Negate(_)=> {
+            for c in 'a'..='z' {
+                cc[c] = 255;
+                return;
+            }
+        }
+        Anagram(false, v) | DrawnFromAnagram(v) | Subpattern(v) | Reverse(v)=> {
+            for c in v {
+                letters_possible_recurse(c, cc);
+            }
+        }
+        Disjunction((a, b)) | Conjunction((a, b)) => {
+            for c in a.iter().chain(b.iter()) {
+                letters_possible_recurse(c, cc);
+            }
+        }
+
+    }
+
+}
+fn letters_possible(p: &Constraint) -> CharCounter {
+    let mut cc = CharCounter::default();
+    letters_possible_recurse(p, &mut cc);
+    cc
+}
 fn length_range(
     p: &Constraint,
     bindings: &VariableMap<Option<String>>,
@@ -698,36 +748,25 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                 }
                 DrawnFromAnagram(fodder) => {
                     let fodder = fodder.clone();
+                    let mut letters = letters_possible(&self[&pattern_idx][constraint_index]);
                     let sub_candidate = &candidate[streak_start..streak_end];
 
-                    if fodder.iter().all(|f| match f {
+                    for n in sub_candidate.chars(){
+                        if letters[n] > 0 {
+                            letters[n] -= 1;
+                        } else {
+                            continue 'streaks
+                        }
+                    }
+
+                    if !fodder.iter().all(|f| match f {
                         Literal(_) => true,
                         _ => false,
                     }) {
-                        let needs = sub_candidate.chars().collect_vec();
-                        let mut chars = fodder
-                            .iter()
-                            .map(|f| match f {
-                                Literal(c) => c,
-                                _ => unreachable!(),
-                            })
-                            .collect_vec();
-                        for n in needs.iter() {
-                            match chars.iter().position(|c| *c == n) {
-                                Some(u) => {
-                                    chars.remove(u);
-                                }
-                                None => {
-                                    continue 'streaks;
-                                }
-                            }
-                        }
-                    } else {
                         let mut covers: Vec<(usize, (usize, usize))> =
                             Vec::with_capacity(fodder.len());
-                        let mut f_covers = vec![]; //Vec::with_capacity(fodder.len() * )
                         for (i, f) in fodder.into_iter().enumerate() {
-                            f_covers.clear();
+                            let mut f_covers = vec![]; //Vec::with_capacity(fodder.len() * )
                             let (a, b) = length_range(&f, &self.bindings, &self.spec_var_length);
                             for c_start in 0..=(sub_candidate.len().saturating_sub(a)) {
                                 for c_len in a..=b.min(sub_candidate.len().saturating_sub(c_start))
@@ -738,7 +777,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                                         1,
                                     );
                                     self.subexpr_pattern_stack.push((
-                                        sub_candidate.to_string(),
+                                        String::default(),
                                         PatternIndex::default(),
                                         Some(0),
                                     ));
@@ -756,7 +795,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                                 }
                             }
 
-                            covers.extend(f_covers.iter().map(|r| (i, *r)));
+                            covers.extend(f_covers.into_iter().map(|r| (i, r)));
                         }
                         let works =
                             constraint_solver::evaluate_covers(&covers, sub_candidate.len());
@@ -796,7 +835,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                                     1,
                                 );
                                 self.subexpr_pattern_stack.push((
-                                    sub_candidate.to_string(),
+                                    String::default(),
                                     PatternIndex::default(),
                                     Some(0),
                                 ));
