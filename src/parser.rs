@@ -105,11 +105,11 @@ fn parse_qat_simple_pattern(input: &str) -> IResult<&str, Constraint> {
                 Subpattern(seq)
             }
         }),
-        map(preceded(tag("/"), many1(parse_qat_element)), |ana| {
-            Anagram(false, ana)
-        }),
         map(preceded(tag("/*"), many1(parse_qat_element)), |ana| {
             Anagram(true, ana)
+        }),
+        map(preceded(tag("/"), many1(parse_qat_element)), |ana| {
+            Anagram(false, ana)
         }),
     ))(input)?;
     Ok((input, result))
