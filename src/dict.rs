@@ -5,7 +5,7 @@ use crate::*;
 fn word_n<'a>(n: usize, m: usize) -> Vec<&'a str> {
     DICTIONARY
         .iter()
-        //  .filter(|w| w==&&"test"||w==&&"night" )
+        //  .filter(|w| w==&&"ziti" )
         //  .filter(|w| w == &&"costars" || w == &&"cos")
         .filter_map(|w| {
             if w.len() >= n && w.len() <= m {
@@ -16,7 +16,7 @@ fn word_n<'a>(n: usize, m: usize) -> Vec<&'a str> {
         })
         .collect()
 }
-
+// 
 lazy_static! {
 
 pub static ref ALPHABET: Vec<char>  = "abcdefghijklmnopqrstuvwxyz".chars().collect();
@@ -222013,7 +222013,7 @@ toeragger
 toeraggers
 toerags
 toerrishuman
-toerrishuman;toforgivedivine
+toerrishumantoforgivedivine
 toes
 toetheline
 toetoe

@@ -96,7 +96,7 @@ fn parse_qat_simple_pattern(input: &str) -> IResult<&str, Constraint> {
                 many1(parse_qat_element),
                 preceded(tag("/"), many1(parse_qat_element)),
             )),
-            |(seq, ana)| Conjunction((vec![DrawnFromAnagram(ana)], seq)), // TODO add anagram letterbank flag
+            |(seq, ana)| Conjunction((vec![Anagram(true, false, ana)], seq)), // TODO add anagram letterbank flag
         ),
         map(many1(parse_qat_element), |seq| {
             if seq.len() == 1 {
@@ -106,10 +106,10 @@ fn parse_qat_simple_pattern(input: &str) -> IResult<&str, Constraint> {
             }
         }),
         map(preceded(tag("/*"), many1(parse_qat_element)), |ana| {
-            Anagram(true, ana)
+            Anagram(false, true, ana)
         }),
         map(preceded(tag("/"), many1(parse_qat_element)), |ana| {
-            Anagram(false, ana)
+            Anagram(true, true, ana)
         }),
     ))(input)?;
     Ok((input, result))
@@ -240,6 +240,7 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
             tuple((tag("/*"), many1(production_pattern_item))),
             |(_, avec)| {
                 vec![Anagram(
+                    false,
                     true,
                     avec.into_iter().flat_map(|v| v.into_iter()).collect(),
                 )]
@@ -249,7 +250,8 @@ fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
             tuple((tag("/"), many1(production_pattern_item))),
             |(_, avec)| {
                 vec![Anagram(
-                    false,
+                    true,
+                    true,
                     avec.into_iter().flat_map(|v| v.into_iter()).collect(),
                 )]
             },
@@ -319,7 +321,7 @@ fn misprint(constraint: Constraint, optional: MisprintSetting) -> Constraint {
                     Disjunction((vec![acc], bonged_clause))
                 })
         }
-        DrawnFromAnagram(_) | Anagram(_, _) | Star | Word(_) | Variable(_) => constraint,
+        Anagram(_, _, _) | Star | Word(_) | Variable(_) => constraint,
     }
 }
 
@@ -427,7 +429,7 @@ pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
                 .iter()
                 .flat_map(|cs| cs.iter().flat_map(|c| mention(c).into_iter()))
                 .collect(),
-            Subpattern(v) | Anagram(_, v) | DrawnFromAnagram(v) | Negate(v) | Reverse(v) => {
+            Subpattern(v) | Anagram(_, _, v) | Negate(v) | Reverse(v) => {
                 v.iter().flat_map(|c| mention(c)).collect()
             }
             Star | Word(_) | Literal(_) | LiteralFrom(_) => vec![],
