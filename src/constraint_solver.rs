@@ -1,7 +1,5 @@
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
-use serde::__private::de;
-use std::{env, time::SystemTime};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ConstraintStatus {
@@ -51,46 +49,51 @@ fn propagate<'a>(
         return true;
     }
 
-    let mut most_constrained_tag: &  Vec<(
-            ChoiceStatus,
-            Tag,
-            Span,
-            usize, /* constrained at depth */
-        )>;
-    let mut choices: Vec<_> = vec![];
+    let choices: Vec<_>;
     let mut most_constrained_place = usize::MAX;
     if place_requirement == ConstraintStatus::NeedToSatisfy {
         let most_constrained_place_search = places
             .iter()
             .enumerate()
-            .filter(|(i, p)| p.0 != ConstraintStatus::Satisfied)
-            .min_by_key(|(i, p)| p.1);
+            .filter(|(_i, p)| p.0 != ConstraintStatus::Satisfied)
+            .min_by_key(|(_i, p)| p.1);
 
-        if most_constrained_place_search.is_none() && place_requirement == ConstraintStatus::NeedToSatisfy {
+        if most_constrained_place_search.is_none()
+            && place_requirement == ConstraintStatus::NeedToSatisfy
+        {
             // println!("most constraine dplce has no optiosn");
             return false;
         }
         let (res, (_, _, c)) = most_constrained_place_search.unwrap();
         most_constrained_place = res;
         choices = c
-        .into_iter()
-        .filter(|c| c.0 == ChoiceStatus::Available)
-        .unique_by(|c| match c.1 {
-            Tag(_id, Some(ch)) => (1 << 10 + ch as usize, c.2),
-            Tag(id, None) => (id, c.2),
-        })
-        .cloned()
-        .collect_vec();
-
+            .into_iter()
+            .filter(|c| c.0 == ChoiceStatus::Available)
+            .unique_by(|c| match c.1 {
+                Tag(_id, Some(ch)) => (1 << 10 + ch as usize, c.2),
+                Tag(id, None) => (id, c.2),
+            })
+            .cloned()
+            .collect_vec();
     } else {
-        let most_constrained_tag_search = tags.iter().filter(|t|t.0 == ConstraintStatus::NeedToSatisfy).next();
+        let most_constrained_tag_search = tags
+            .iter()
+            .filter(|t| t.0 == ConstraintStatus::NeedToSatisfy)
+            .next();
         if most_constrained_tag_search.is_none() {
             // println!("Failed, most constrained tag has n options");
             return false;
         }
         let most_constrained_tag = most_constrained_tag_search.unwrap().1;
-        choices =places.iter().flat_map(|p|p.2.iter().filter(|c|c.1 == most_constrained_tag && c.0 == ChoiceStatus::Available)).copied().collect_vec();
-    // println!("initia lcohicse {:?}", choices);
+        choices = places
+            .iter()
+            .flat_map(|p| {
+                p.2.iter()
+                    .filter(|c| c.1 == most_constrained_tag && c.0 == ChoiceStatus::Available)
+            })
+            .copied()
+            .collect_vec();
+        // println!("initia lcohicse {:?}", choices);
     }
     // println!("Chicopes {:?}", choices);
 
@@ -244,11 +247,7 @@ pub(crate) fn evaluate_covers(
                     .filter(|c| i >= c.1 .0 && i < c.1 .1)
                     .map(|c| (ChoiceStatus::Available, c.0, c.1, 0))
                     .collect_vec();
-                (
-                    ConstraintStatus::NeedToSatisfy,
-                    cover_choices.len(),
-                    cover_choices,
-                )
+                (place_requirement, cover_choices.len(), cover_choices)
             })
             .collect(),
         tags,
@@ -271,7 +270,7 @@ fn propagate_test() {
         (Tag(100, None), (5, 7)),
     ];
 
-    let t0 = SystemTime::now();
+    let t0 = std::time::SystemTime::now();
     println!(
         "Prop: {}",
         evaluate_covers("abcdefg", &covers, 7, false, true)

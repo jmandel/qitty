@@ -5,7 +5,7 @@ use crate::*;
 fn word_n<'a>(n: usize, m: usize) -> Vec<&'a str> {
     DICTIONARY
         .iter()
-        //  .filter(|w| w==&&"iron" )
+        //  .filter(|w| w==&&"ironman" )
         //  .filter(|w| w == &&"costars" || w == &&"cos")
         .filter_map(|w| {
             if w.len() >= n && w.len() <= m {
@@ -16,16 +16,11 @@ fn word_n<'a>(n: usize, m: usize) -> Vec<&'a str> {
         })
         .collect()
 }
-// 
+//
 lazy_static! {
-
-pub static ref ALPHABET: Vec<char>  = "abcdefghijklmnopqrstuvwxyz".chars().collect();
-pub static ref DICTIONARY: Vec<&'static str> = UKACD17
-    .lines()
-    .collect();
-
+    pub static ref ALPHABET: Vec<char> = "abcdefghijklmnopqrstuvwxyz".chars().collect();
+    pub static ref DICTIONARY: Vec<&'static str> = UKACD17.lines().collect();
     pub static ref WORDS: Vec<&'static str> = word_n(0, 30);
-
     pub static ref SUBSTRINGS: FxHashMap<String, FxHashSet<usize>> = {
         let mut substrings: FxHashMap<String, FxHashSet<usize>> = FxHashMap::default();
         for (i, w) in WORDS.iter().enumerate() {

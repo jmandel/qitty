@@ -29,7 +29,11 @@ pub enum Constraint {
     Star,
     Literal(char),
     LiteralFrom(Vec<char>),
-    Anagram(bool /* match all places */, bool /* match all tags */, Vec<Constraint>),
+    Anagram(
+        bool, /* match all places */
+        bool, /* match all tags */
+        Vec<Constraint>,
+    ),
     Variable(char),
     Disjunction((Vec<Constraint>, Vec<Constraint>)),
     Conjunction((Vec<Constraint>, Vec<Constraint>)),
@@ -118,21 +122,22 @@ impl IndexMut<char> for CharCounter {
     }
 }
 
-
 fn letters_possible_recurse(p: &Constraint, cc: &mut CharCounter) {
     match p {
-        Literal(c)  => {cc[*c] += 1;}
+        Literal(c) => {
+            cc[*c] += 1;
+        }
         LiteralFrom(vs) => {
             for c in vs {
                 cc[*c] += 1;
             }
         }
-        Anagram(false, _, _) | Variable(_) | Word(_) | Star | Negate(_)=> {
+        Anagram(false, _, _) | Variable(_) | Word(_) | Star | Negate(_) => {
             for c in 'a'..='z' {
                 cc[c] = 255;
             }
         }
-        Anagram(true, _, v) | Subpattern(v) | Reverse(v)=> {
+        Anagram(true, _, v) | Subpattern(v) | Reverse(v) => {
             for c in v {
                 letters_possible_recurse(c, cc);
             }
@@ -142,9 +147,7 @@ fn letters_possible_recurse(p: &Constraint, cc: &mut CharCounter) {
                 letters_possible_recurse(c, cc);
             }
         }
-
     }
-
 }
 fn letters_possible(p: &Constraint) -> CharCounter {
     let mut cc = CharCounter::default();
@@ -158,11 +161,11 @@ fn length_range(
 ) -> (usize, usize) {
     match p {
         Literal(_) | LiteralFrom(_) => (1, 1),
-        Anagram(use_all_tags, use_all_places, v) => v
+        Anagram(use_all_places, use_all_tags, v) => v
             .iter()
             .map(|i| length_range(i, bindings, spec))
-            .fold((0, if *use_all_tags { 0 } else { 255 }), |acc, v| {
-                (acc.0 + if *use_all_places {v.0} else {0}, acc.1 + v.1)
+            .fold((0, if *use_all_places { 0 } else { 255 }), |acc, v| {
+                (acc.0 + if *use_all_tags { v.0 } else { 0 }, acc.1 + v.1)
             }),
         &Variable(v) => {
             if let Some(b) = &bindings[v] {
@@ -750,19 +753,22 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
 
                     let mut letters = letters_possible(&self[&pattern_idx][constraint_index]);
                     let sub_candidate = &candidate[streak_start..streak_end];
+                    // println!("places{} tags{} Counter {:?}", use_all_places, use_all_tags, letters);
 
-                    for n in sub_candidate.chars(){
+                    for n in sub_candidate.chars() {
                         if letters[n] > 0 {
                             letters[n] -= 1;
                         } else {
-                            continue 'streaks
+                            continue 'streaks;
                         }
                     }
 
-                    if !use_all_places || !fodder.iter().all(|f| match f {
-                        Literal(_) => true,
-                        _ => false,
-                    }) {
+                    if !use_all_places
+                        || !fodder.iter().all(|f| match f {
+                            Literal(_) => true,
+                            _ => false,
+                        })
+                    {
                         let mut covers: Vec<(Tag, (usize, usize))> =
                             Vec::with_capacity(fodder.len());
                         for (i, f) in fodder.into_iter().enumerate() {
@@ -788,7 +794,6 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                                     if let (_, _, Some(found)) =
                                         self.subexpr_pattern_stack.pop().unwrap()
                                     {
-
                                         if found > 0 {
                                             f_covers.push((c_start, c_start + c_len))
                                         }
@@ -800,17 +805,31 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                                 continue 'streaks;
                             }
 
-                            covers.extend(f_covers.into_iter().map(|r| (Tag(i, match f{
-                                Variable(v) => Some(v),
-                                _ => None
-                            }), r)));
+                            covers.extend(f_covers.into_iter().map(|r| {
+                                (
+                                    Tag(
+                                        i,
+                                        match f {
+                                            Variable(v) => Some(v),
+                                            _ => None,
+                                        },
+                                    ),
+                                    r,
+                                )
+                            }));
                         }
                         // println!("Solve c {} {:?}. {}", sub_candidate, covers, sub_candidate.len());
-                        let works = constraint_solver::evaluate_covers(sub_candidate, &covers, sub_candidate.len(), use_all_tags, use_all_places);
+                        let works = constraint_solver::evaluate_covers(
+                            sub_candidate,
+                            &covers,
+                            sub_candidate.len(),
+                            use_all_tags,
+                            use_all_places,
+                        );
                         if !works {
                             continue 'streaks;
                         }
-                    } 
+                    }
                     self.nested_constraints_execute(
                         &candidate[remainder_start..remainder_end],
                         pattern_idx.index(if anchored_left {
@@ -819,7 +838,6 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                             0..pattern_len - 1
                         }),
                     );
-
                 }
             }
         }

@@ -1,4 +1,4 @@
-use std::{ops::Sub, str::FromStr};
+use std::str::FromStr;
 
 use crate::dict::ALPHABET;
 #[allow(unused_imports)]
@@ -191,7 +191,7 @@ fn parse_qat_length_qualifier(input: &str) -> IResult<&str, (usize, usize)> {
 fn parse_qat_compound_pattern(input: &str) -> IResult<&str, Constraint> {
     let (input, misprint_qualifier) = opt(alt((tag("`"), tag("?`"))))(input)?;
 
-    let (input, mut t1) = parse_qat_compound_pattern_precedence_1(input)?;
+    let (input, t1) = parse_qat_compound_pattern_precedence_1(input)?;
     let (input, mut item) = fold_many0(
         preceded(tag("|"), parse_qat_compound_pattern_precedence_1),
         || t1.clone(),
@@ -224,46 +224,11 @@ fn parse_qat_compound_pattern(input: &str) -> IResult<&str, Constraint> {
     Ok((input, item))
 }
 
-use std::{env, time::SystemTime};
 #[test]
 fn qatcp() {
-    let parg: String = env::args().last().unwrap();
+    let parg: String = std::env::args().last().unwrap();
     let r = parse_qat_compound_pattern(&parg);
     println!("Parsed to {:?}", r);
-}
-
-fn production_pattern_item(input: &str) -> IResult<&str, Vec<Constraint>> {
-    let (input, reversal) = opt(tag("~"))(input)?;
-    let (input, mut items) = alt((
-        map(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), |c| vec![Variable(c)]),
-        map(
-            tuple((tag("/*"), many1(production_pattern_item))),
-            |(_, avec)| {
-                vec![Anagram(
-                    false,
-                    true,
-                    avec.into_iter().flat_map(|v| v.into_iter()).collect(),
-                )]
-            },
-        ),
-        map(
-            tuple((tag("/"), many1(production_pattern_item))),
-            |(_, avec)| {
-                vec![Anagram(
-                    true,
-                    true,
-                    avec.into_iter().flat_map(|v| v.into_iter()).collect(),
-                )]
-            },
-        ),
-    ))(input)?;
-
-    items = match reversal {
-        None => items,
-        Some(_) => vec![Reverse(items)],
-    };
-
-    Ok((input, items))
 }
 
 #[derive(Copy, Clone)]
@@ -490,7 +455,6 @@ pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
 
 pub mod tests {
 
-    use crate::dict::DICTIONARY;
     // rust analyzer seems confused about these being "unused" (or I am ;-))
     #[allow(unused_imports)]
     use crate::{
@@ -508,7 +472,11 @@ pub mod tests {
         let parg: String = env::args().last().unwrap();
         println!("{:?}", parse_query_terms(&parg));
         let word_count = SUBSTRINGS.len();
-        println!("{} word with {} substrings", DICTIONARY.len(), word_count);
+        println!(
+            "{} word with {} substrings",
+            crate::dict::DICTIONARY.len(),
+            word_count
+        );
 
         let mut results = vec![];
         let mut cb = |a: &Vec<&str>, b: &VariableMap<Option<String>>| {
