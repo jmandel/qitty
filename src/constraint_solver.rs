@@ -76,8 +76,8 @@ fn propagate<'a>(
         .into_iter()
         .filter(|c| c.0 == ChoiceStatus::Available)
         .unique_by(|c| match c.1 {
-            Tag(_id, Some(c)) => 1 << 10 + c as usize,
-            Tag(id, None) => id,
+            Tag(_id, Some(ch)) => (1 << 10 + ch as usize, c.2),
+            Tag(id, None) => (id, c.2),
         })
         .cloned()
         .collect_vec();

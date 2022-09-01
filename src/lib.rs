@@ -786,6 +786,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                                     if let (_, _, Some(found)) =
                                         self.subexpr_pattern_stack.pop().unwrap()
                                     {
+
                                         if found > 0 {
                                             f_covers.push((c_start, c_start + c_len))
                                         }
