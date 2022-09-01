@@ -158,11 +158,11 @@ fn length_range(
 ) -> (usize, usize) {
     match p {
         Literal(_) | LiteralFrom(_) => (1, 1),
-        Anagram(closed, _, v) => v
+        Anagram(use_all_tags, use_all_places, v) => v
             .iter()
             .map(|i| length_range(i, bindings, spec))
-            .fold((0, if *closed { 0 } else { 255 }), |acc, v| {
-                (acc.0 + v.0, acc.1 + v.1)
+            .fold((0, if *use_all_tags { 0 } else { 255 }), |acc, v| {
+                (acc.0 + if *use_all_places {v.0} else {0}, acc.1 + v.1)
             }),
         &Variable(v) => {
             if let Some(b) = &bindings[v] {
@@ -457,6 +457,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
             &self.bindings,
             &self.spec_var_length,
         );
+        // println!("SLB {:?}", streak_length_bound);
 
         if streak_length_bound.0 != streak_length_bound.1 {
             let right_anchor = length_range(
@@ -471,6 +472,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                 streak_start = candidate.len().saturating_sub(streak_length_bound.0);
             }
         }
+
         streak_length_bound.1 = streak_length_bound.1.min(candidate.len());
         if candidate.len() < streak_length_bound.0 {
             return;
