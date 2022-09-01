@@ -759,7 +759,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                         }
                     }
 
-                    if !fodder.iter().all(|f| match f {
+                    if !use_all_places || !fodder.iter().all(|f| match f {
                         Literal(_) => true,
                         _ => false,
                     }) {
