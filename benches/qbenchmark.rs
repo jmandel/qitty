@@ -57,8 +57,11 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         //"A=(*/turquoise);|A|=4-;|B|=2-;AB;BA	",
         "|A|=4-;|B|=2-;(A&*/turquoise)B;BA	",
         //"A=(/lilac);A.;A..;A...;A....;A.....",
+        "(A&/lilac).;A..;A...;A....;A.....",
         // "ACB;ADB;AEB;AFB;AGB;AHB;|ACB|=8;|H|=1;!=C<D<E<F<G<H",
         // "ABCDEF=......;!=A<B<C<D<E<F",
+        ">(/1122334455)>"
+
     ];
     for q in queries {
         c.bench_function(q, |b| b.iter(|| qitty::q_internal(q, max_results)));

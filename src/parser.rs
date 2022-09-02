@@ -10,7 +10,7 @@ use nom::{
     bytes::complete::tag,
     character::complete::{digit1, one_of},
     combinator::{map, map_res, opt, value},
-    multi::{fold_many0, many1, many_m_n, separated_list1},
+    multi::{fold_many0, many1, many_m_n},
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
     IResult,
 };
@@ -78,12 +78,17 @@ fn parse_qat_element(input: &str) -> IResult<&str, Constraint> {
         value(Word(WordDirection::Forwards), tag(">")),
         value(Word(WordDirection::Backwards), tag("<")),
         // A digit from 0 to 9 matches any letter, the same one throughout the pattern. Different digits match different letters.
-        map(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"), |c| Variable(match c {
-            c if ('A'..='P').into_iter().contains(&c) => c,
-            c if ('0'..='9').into_iter().contains(&c) => ((c as u8) + 33) as char,
-            _ => unreachable!()
-        })),
-        delimited(tag("("), parse_qat_compound_pattern, tag(")")),
+        map(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"), |c| {
+            Variable(match c {
+                c if ('A'..='P').into_iter().contains(&c) => c,
+                c if ('0'..='9').into_iter().contains(&c) => ((c as u8) + 33) as char,
+                _ => unreachable!(),
+            })
+        }),
+        delimited(tag("("), map(opt(parse_qat_compound_pattern), |p|match p{
+            Some(c) => c,
+            None => Subpattern(vec![])
+        }), tag(")")),
     ))(input)?;
 
     item = match reversed {
@@ -215,14 +220,11 @@ fn parse_qat_compound_pattern(input: &str) -> IResult<&str, Constraint> {
 
     item = match misprint_qualifier {
         None => item,
-        Some(q) => misprint(
-            item,
-            match q {
-                "?`" => MisprintSetting::OptionalMisprint,
-                "`" => MisprintSetting::Misprint,
-                _ => panic!(),
-            },
-        ),
+        Some(q) => match q {
+            "?`" => Disjunction((vec![item.clone()], vec![misprint(item)])),
+            "`" => misprint(item),
+            _ => unreachable!(),
+        },
     };
 
     Ok((input, item))
@@ -235,13 +237,7 @@ fn qatcp() {
     println!("Parsed to {:?}", r);
 }
 
-#[derive(Copy, Clone)]
-enum MisprintSetting {
-    Misprint,
-    OptionalMisprint,
-}
-
-fn misprint(constraint: Constraint, optional: MisprintSetting) -> Constraint {
+fn misprint(constraint: Constraint) -> Constraint {
     match constraint {
         Literal(c) => LiteralFrom(ALPHABET.iter().filter(|l| **l != c).copied().collect()),
         LiteralFrom(cs) => LiteralFrom(
@@ -252,12 +248,12 @@ fn misprint(constraint: Constraint, optional: MisprintSetting) -> Constraint {
                 .collect(),
         ),
         Disjunction((a, b)) => {
-            let mut abonged = misprint(Subpattern(a), optional);
+            let mut abonged = misprint(Subpattern(a));
             abonged = match abonged {
                 Subpattern(ab) if ab.len() == 1 => ab[0].clone(),
                 _ => abonged,
             };
-            let mut bbonged = misprint(Subpattern(b), optional);
+            let mut bbonged = misprint(Subpattern(b));
             bbonged = match bbonged {
                 Subpattern(bb) if bb.len() == 1 => bb[0].clone(),
                 _ => bbonged,
@@ -266,31 +262,24 @@ fn misprint(constraint: Constraint, optional: MisprintSetting) -> Constraint {
             Disjunction((vec![abonged], vec![bbonged]))
         }
         Conjunction((a, b)) => {
-            let a = misprint(Subpattern(a), optional);
-            let b = misprint(Subpattern(b), optional);
+            let a = misprint(Subpattern(a));
+            let b = misprint(Subpattern(b));
             Conjunction((vec![a], vec![b]))
         }
-        Negate(vs) => Negate(vec![misprint(Subpattern(vs), optional)]),
-        Reverse(vs) => Reverse(vec![misprint(Subpattern(vs), optional)]),
+        Negate(vs) => Negate(vec![misprint(Subpattern(vs))]),
+        Reverse(vs) => Reverse(vec![misprint(Subpattern(vs))]),
         Subpattern(vs) => {
-            let mut init = Subpattern(if let MisprintSetting::OptionalMisprint = optional {
-                vs.clone()
-            } else {
-                vec![]
-            });
-            init = match init {
-                Subpattern(vs) if vs.len() == 1 => vs[0].clone(),
-                _ => init,
-            };
+            let init = Subpattern(vec![]);
             vs.iter()
                 .enumerate()
                 .fold(init, |acc: Constraint, (i, c): (usize, &Constraint)| {
                     let mut bonged_clause = vs.clone();
-                    bonged_clause[i] = misprint(c.clone(), optional);
+                    bonged_clause[i] = misprint(c.clone());
                     Disjunction((vec![acc], bonged_clause))
                 })
         }
-        Anagram(_, _, _) | Star | Word(_) | Variable(_) => constraint,
+        Anagram(_, _, _) | Word(_) | Variable(_) => constraint,
+        Star => LiteralFrom(vec![]), // impossiblle, to ensure misprinted stars always fail
     }
 }
 
@@ -355,21 +344,44 @@ fn production_vardifferent_constraint(input: &str) -> IResult<&str, QueryTerm> {
     Ok((input, QueryTerm::QueryTermVariablesInequality(varnames)))
 }
 
+fn parse_query_term(input: &str) -> IResult<&str, QueryTerm> {
+    let res = alt((
+        map(
+            tuple((parse_qat_length_qualifier, parse_qat_compound_pattern)),
+            |(l, p)| QueryTerm::QueryTermConstraints(l, p),
+        ),
+        production_varsingle_length_constraint,
+        production_variables_length_constraint,
+        production_vardifferent_constraint,
+    ))(input)?;
+    Ok(res)
+}
+
+fn parse_query_terms_tolerant(input: &str) -> IResult<&str, Vec<QueryTerm>> {
+    let (input, t1) = parse_query_term(input)?;
+
+    let (input, items) = fold_many0(
+        preceded(tag(";"), opt(parse_query_term)),
+        || vec![t1.clone()],
+        |mut acc, term| {
+            if term.is_some() {
+                acc.push(term.unwrap());
+            }
+            acc
+        },
+    )(input)?;
+    Ok((input, items))
+}
+
 fn parse_query_terms(input: &str) -> Vec<QueryTerm> {
-    separated_list1(
-        tag(";"),
-        alt((
-            map(
-                tuple((parse_qat_length_qualifier, parse_qat_compound_pattern)),
-                |(l, p)| QueryTerm::QueryTermConstraints(l, p),
-            ),
-            production_varsingle_length_constraint,
-            production_variables_length_constraint,
-            production_vardifferent_constraint,
-        )),
-    )(&input)
-    .unwrap()
-    .1
+    parse_query_terms_tolerant(input).unwrap().1
+}
+
+pub fn validate_query(input: &str) -> bool {
+    input == ""
+        || parse_query_terms_tolerant(input)
+            .map(|v| v.0 == "")
+            .unwrap_or(false)
 }
 
 pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
@@ -413,15 +425,20 @@ pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
     let variables_mentioned = patterns.iter().flat_map(|i| mention(&i.1)).fold(
         VariableMap::<(usize, usize)>::default(),
         |mut vm, v| {
-            vm[v] = (1, match v {
-                'A'..='P' => 255,
-                _ => 1
-            });
+            vm[v] = (
+                1,
+                match v {
+                    'A'..='P' => 255,
+                    _ => 1,
+                },
+            );
             vm
         },
     );
 
-    let single_digits_different = ('Q'..='Z').filter(|c|variables_mentioned[*c] == (1, 1)).collect_vec();
+    let single_digits_different = ('Q'..='Z')
+        .filter(|c| variables_mentioned[*c] == (1, 1))
+        .collect_vec();
 
     let variables_constrained =
         variable_length
@@ -451,7 +468,6 @@ pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
 
     if single_digits_different.len() > 0 {
         variable_inquality.push(single_digits_different);
-
     }
 
     ExecutionContext::new(

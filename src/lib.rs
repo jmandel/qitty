@@ -154,6 +154,36 @@ fn letters_possible(p: &Constraint) -> CharCounter {
     letters_possible_recurse(p, &mut cc);
     cc
 }
+fn letters_required_recurse(p: &Constraint, cc: &mut CharCounter) {
+    match p {
+        Literal(c) => {
+            cc[*c] += 1;
+        }
+        LiteralFrom(vs) => {
+            if vs.len() == 1 {
+                cc[vs[0]] += 1;
+            }
+        }
+        Anagram(_, false, _)
+        | Variable(_)
+        | Word(_)
+        | Star
+        | Negate(_)
+        | Conjunction(_)
+        | Disjunction(_) => {}
+        Anagram(_, true, v) | Subpattern(v) | Reverse(v) => {
+            for c in v {
+                letters_required_recurse(c, cc);
+            }
+        }
+    }
+}
+fn letters_required(p: &Constraint) -> CharCounter {
+    let mut cc = CharCounter::default();
+    letters_required_recurse(p, &mut cc);
+    cc
+}
+
 fn length_range(
     p: &Constraint,
     bindings: &VariableMap<Option<String>>,
@@ -763,6 +793,49 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                         }
                     }
 
+                    let letters_required = letters_required(&self[&pattern_idx][constraint_index]);
+                    let mut candidate_letters: CharCounter = CharCounter::default();
+                    for l in sub_candidate.chars() {
+                        candidate_letters[l] += 1;
+                    }
+
+                    for l in 'a'..'z' {
+                        for _i in 0..letters_required[l] {
+                            if candidate_letters[l] > 0 {
+                                candidate_letters[l] -= 1;
+                            } else {
+                                continue 'streaks;
+                            }
+                        }
+                    }
+
+                    if use_all_tags {
+                        let char_counts_group = candidate_letters
+                            .0
+                            .iter()
+                            .filter(|v| **v > 0)
+                            .sorted()
+                            .rev();
+                        let repeat_needs_group = fodder
+                            .iter()
+                            .filter_map(|f| match f {
+                                Variable(v @ 'Q'..='Z') => Some(v),
+                                _ => None,
+                            })
+                            .sorted()
+                            .group_by(|v| *v)
+                            .into_iter()
+                            .map(|(_g, v)| v.count())
+                            .sorted()
+                            .rev();
+
+                        for pair in char_counts_group.zip(repeat_needs_group) {
+                            if *pair.0 < pair.1 {
+                                continue 'streaks;
+                            }
+                        }
+                    }
+
                     if !use_all_places
                         || !fodder.iter().all(|f| match f {
                             Literal(_) => true,
@@ -774,6 +847,9 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                         for (i, f) in fodder.into_iter().enumerate() {
                             let mut f_covers = vec![];
                             let (a, b) = length_range(&f, &self.bindings, &self.spec_var_length);
+                            if a == 0 && b == 0 {
+                                continue;
+                            }
                             for c_start in 0..=(sub_candidate.len().saturating_sub(a)) {
                                 for c_len in a..=b.min(sub_candidate.len().saturating_sub(c_start))
                                 {
@@ -887,6 +963,10 @@ use serde::Serialize;
 struct JsResult {
     words: Vec<String>,
     bindings: HashMap<char, String>,
+}
+#[wasm_bindgen]
+pub fn parse(query: &str) -> bool {
+    parser::validate_query(query)
 }
 
 #[wasm_bindgen]
