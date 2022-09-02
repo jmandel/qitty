@@ -18,7 +18,7 @@
       padding: 1em;
       box-sizing: border-box;
       display: grid;
-      grid-template-rows: 2em 1em auto;
+      grid-template-rows: 2em 1em auto 2em;
       grid-template-columns: auto 4em;
       gap: 1em;
     }
@@ -31,7 +31,7 @@
       font-size: 1em;
     }
 
-    #result {
+    #status {
       grid-row: 2;
       grid-column-start: 1;
       grid-column-end: 2;
@@ -51,9 +51,7 @@
       border: 0px solid transparent;
     }
 
-    table {
-      height: 0px;
-      width: 0px;
+    div#results {
       grid-row: 3;
       grid-column: 1 / span 2;
       font-size: 1.5em;
@@ -71,6 +69,10 @@
       vertical-align: top;
       margin-right: 2px;
     }
+
+    footer {
+      grid-row: 4;
+    }
   </style>
 </head>
 
@@ -78,12 +80,16 @@
 </body>
 <input id="q" type="text" />
 <button onclick="runQuery()">Run</button>
-<div id="result">Loading...</div>
-<table id="table">
-</table>
+<div id="status">Loading...</div>
+<div id="results">
+  <table id="table"> </table>
+</div> 
+<footer>
+  Source at <a href="https://github.com/jmandel/qitty">github.com/jmandel/qitty</a> — or <a href="https://www.quinapalus.com/cgi-bin/qat?" onclick="tryInQat(event)">try your query in qat</a>.
+</footer>
 <script>
   const q = window.document.getElementById("q");
-  const result = window.document.getElementById("result");
+  const status = window.document.getElementById("status");
   const table = window.document.getElementById("table");
   q.addEventListener("keyup", function (event) {
     if (event.key === "Enter") {
@@ -105,6 +111,17 @@
     }
   });
 
+
+  window.addEventListener("keypress", e => {
+    if (e.target.tagName.toLowerCase() == "input") {
+      return;
+    }
+    if (e.key == '/') {
+      q.focus();
+      q.select();
+      e.preventDefault();
+    }
+  })
   window.addEventListener("hashchange", e => {
     let newHash = decodeURIComponent(new URL(e.newURL).hash.slice(1));
     if (newHash !== q.value) {
@@ -118,15 +135,27 @@
   let schema = [];
   function runQuery() {
     window.location.hash = q.value;
-    result.innerHTML = "";
+    status.innerHTML = "Executing";
     table.innerHTML = "";
     schema = [];
     worker.postMessage({ q: q.value.replaceAll(" ", ""), limit: LIMIT });
   }
 
+  const accumulated = {
+    table: "",
+  }
+  function paintAccumulated(){
+    if (accumulated.table) {
+      table.innerHTML += accumulated.table;
+      accumulated.table = "";
+    }
+    requestAnimationFrame(paintAccumulated);
+  }
+  requestAnimationFrame(paintAccumulated);
+
   function onComplete(c) {
     console.log("Complete", c);
-    result.innerHTML = `\n${JSON.stringify(c)}`;
+    status.innerHTML = `\n${JSON.stringify(c)}`;
   }
 
   function onResult(r) {
@@ -143,7 +172,13 @@
       table.innerHTML = `<tr>${r.words.map((_, i) => `<th>Word ${i}</th>`).join(" ")}${bindings.map(b => `<th>${b[0]}</th>`).join(" ")}</tr>`
     }
 
-    table.innerHTML += `<tr>${r.words.map(w => `<td>${w}</td>`).join(" ")}${bindings.map(b => `<td>${b[1]}</td>`).join(" ")}</tr>`
+    accumulated.table += `<tr>${r.words.map(w => `<td>${w}</td>`).join(" ")}${bindings.map(b => `<td>${b[1]}</td>`).join(" ")}</tr>`
+  }
+
+  function tryInQat(e){
+    e.preventDefault();
+    let params 
+    window.open("https://www.quinapalus.com/cgi-bin/qat?" + new URLSearchParams({pat: q.value, end: "Search", dict: "0"}).toString())
   }
 </script>
 
