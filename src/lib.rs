@@ -891,7 +891,6 @@ struct JsResult {
 
 #[wasm_bindgen]
 pub fn q(query: &str, f: &js_sys::Function) -> usize {
-    let _wc = SUBSTRINGS.len(); // trigger lazy static
     let mut count = 0;
     let mut last_val = JsResult {
         words: vec![],

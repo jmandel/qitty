@@ -486,12 +486,12 @@ pub mod tests {
     fn executort() {
         let parg: String = env::args().last().unwrap();
         println!("{:?}", parse_query_terms(&parg));
-        let word_count = SUBSTRINGS.len();
-        println!(
-            "{} word with {} substrings",
-            crate::dict::DICTIONARY.len(),
-            word_count
-        );
+        // let word_count = SUBSTRINGS.len();
+        // println!(
+        //     "{} word with {} substrings",
+        //     crate::dict::DICTIONARY.len(),
+        //     word_count
+        // );
 
         let mut results = vec![];
         let mut cb = |a: &Vec<&str>, b: &VariableMap<Option<String>>| {

@@ -9,7 +9,6 @@ init().then(() => {
     return { count, elapsedMilliseconds, };
   };
 
-  q("start"); // force evaluation of lazy_static DICTIONARY
   postMessage("ready");
 });
 
