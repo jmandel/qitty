@@ -78,7 +78,11 @@ fn parse_qat_element(input: &str) -> IResult<&str, Constraint> {
         value(Word(WordDirection::Forwards), tag(">")),
         value(Word(WordDirection::Backwards), tag("<")),
         // A digit from 0 to 9 matches any letter, the same one throughout the pattern. Different digits match different letters.
-        map(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), |c| Variable(c)),
+        map(one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"), |c| Variable(match c {
+            c if ('A'..='P').into_iter().contains(&c) => c,
+            c if ('0'..='9').into_iter().contains(&c) => ((c as u8) + 33) as char,
+            _ => unreachable!()
+        })),
         delimited(tag("("), parse_qat_compound_pattern, tag(")")),
     ))(input)?;
 
@@ -405,13 +409,19 @@ pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
         .into_iter()
         .sorted_by_key(|p| -(mention(&p.1).len() as isize))
         .collect();
+
     let variables_mentioned = patterns.iter().flat_map(|i| mention(&i.1)).fold(
         VariableMap::<(usize, usize)>::default(),
         |mut vm, v| {
-            vm[v] = (1, 255);
+            vm[v] = (1, match v {
+                'A'..='P' => 255,
+                _ => 1
+            });
             vm
         },
     );
+
+    let single_digits_different = ('Q'..='Z').filter(|c|variables_mentioned[*c] == (1, 1)).collect_vec();
 
     let variables_constrained =
         variable_length
@@ -431,13 +441,18 @@ pub fn parser_exec<'a, 'ctx>(q: &str) -> ExecutionContext<'a, 'ctx> {
         })
         .collect_vec();
 
-    let variable_inquality = query_terms
+    let mut variable_inquality = query_terms
         .iter()
         .filter_map(|t| match t {
             QueryTerm::QueryTermVariablesInequality(vs) => Some(vs.clone()),
             _ => None,
         })
         .collect_vec();
+
+    if single_digits_different.len() > 0 {
+        variable_inquality.push(single_digits_different);
+
+    }
 
     ExecutionContext::new(
         patterns
