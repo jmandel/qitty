@@ -191,11 +191,11 @@ fn length_range(
 ) -> (usize, usize) {
     match p {
         Literal(_) | LiteralFrom(_) => (1, 1),
-        Anagram(use_all_places, use_all_tags, v) => v
+        Anagram(use_all_places, use_all_fodder, v) => v
             .iter()
             .map(|i| length_range(i, bindings, spec))
             .fold((0, if *use_all_places { 0 } else { 255 }), |acc, v| {
-                (acc.0 + if *use_all_tags { v.0 } else { 0 }, acc.1 + v.1)
+                (acc.0 + if *use_all_fodder { v.0 } else { 0 }, acc.1 + v.1)
             }),
         &Variable(v) => {
             if let Some(b) = &bindings[v] {
@@ -776,14 +776,14 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
 
                     self.bindings[v] = reset_var;
                 }
-                Anagram(use_all_places, use_all_tags, fodder) => {
+                Anagram(use_all_places, use_all_fodder, fodder) => {
                     let fodder = fodder.clone();
                     let use_all_places = *use_all_places;
-                    let use_all_tags = *use_all_tags;
+                    let use_all_fodder = *use_all_fodder;
 
                     let mut letters = letters_possible(&self[&pattern_idx][constraint_index]);
                     let sub_candidate = &candidate[streak_start..streak_end];
-                    // println!("places{} tags{} Counter {:?}", use_all_places, use_all_tags, letters);
+                    // println!("places{} tags{} Counter {:?}", use_all_places, use_all_fodder, letters);
 
                     for n in sub_candidate.chars() {
                         if letters[n] > 0 {
@@ -793,28 +793,25 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                         }
                     }
 
-                    let letters_required = letters_required(&self[&pattern_idx][constraint_index]);
-                    let mut candidate_letters: CharCounter = CharCounter::default();
-                    for l in sub_candidate.chars() {
-                        candidate_letters[l] += 1;
-                    }
+                    if use_all_fodder {
+                        let letters_required =
+                            letters_required(&self[&pattern_idx][constraint_index]);
+                        let mut candidate_letters: CharCounter = CharCounter::default();
+                        for l in sub_candidate.chars() {
+                            candidate_letters[l] += 1;
+                        }
 
-                    for l in 'a'..'z' {
-                        for _i in 0..letters_required[l] {
-                            if candidate_letters[l] > 0 {
-                                candidate_letters[l] -= 1;
-                            } else {
-                                continue 'streaks;
+                        for l in 'a'..'z' {
+                            for _i in 0..letters_required[l] {
+                                if candidate_letters[l] > 0 {
+                                    candidate_letters[l] -= 1;
+                                } else {
+                                    continue 'streaks;
+                                }
                             }
                         }
-                    }
 
-                    if use_all_tags {
-                        let char_counts_group = candidate_letters
-                            .0
-                            .iter()
-                            .sorted()
-                            .rev();
+                        let char_counts_group = candidate_letters.0.iter().sorted().rev();
                         let repeat_needs_group = fodder
                             .iter()
                             .filter_map(|f| match f {
@@ -876,7 +873,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                                 }
                             }
 
-                            if use_all_tags && f_covers.len() == 0 {
+                            if use_all_fodder && f_covers.len() == 0 {
                                 continue 'streaks;
                             }
 
@@ -898,7 +895,7 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                             sub_candidate,
                             &covers,
                             sub_candidate.len(),
-                            use_all_tags,
+                            use_all_fodder,
                             use_all_places,
                         );
                         if !works {

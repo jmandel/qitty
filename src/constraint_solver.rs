@@ -97,7 +97,7 @@ fn propagate<'a>(
     }
     // println!("Chicopes {:?}", choices);
 
-    for (_status, selected_tag, selected_span, _) in choices {
+    'choices: for (_status, selected_tag, selected_span, _) in choices {
         let mut binding_to_restore = None;
         // println!("Pick {:?} at {:?}", selected_tag, selected_span);
 
@@ -109,8 +109,12 @@ fn propagate<'a>(
                 .map(|bound| bound != &&candidate[selected_span.0..selected_span.1])
                 .unwrap_or(false)
             {
-                // println!("Binding fialed");
-                continue;
+                continue 'choices;
+            }
+            for v2 in 'Q'..='Z' {
+                if v != v2 && bindings.get(&v2).map(|b| b == &bound_to).unwrap_or(false) {
+                    continue 'choices;
+                }
             }
             bindings.insert(v, bound_to);
         }
