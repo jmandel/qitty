@@ -813,7 +813,6 @@ impl<'a, 'b, 'c> ExecutionContext<'a, 'b> {
                         let char_counts_group = candidate_letters
                             .0
                             .iter()
-                            .filter(|v| **v > 0)
                             .sorted()
                             .rev();
                         let repeat_needs_group = fodder
